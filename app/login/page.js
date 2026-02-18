@@ -33,6 +33,16 @@ export default function LoginPage() {
     }
   }
 
+  const fillDemoCredentials = (type) => {
+    if (type === 'admin') {
+      setEmail('admin@example.com')
+      setPassword('admin123')
+    } else {
+      setEmail('guest@example.com')
+      setPassword('guest123')
+    }
+  }
+
   return (
     <div className="auth-page">
       <div className="auth-container">
@@ -124,20 +134,26 @@ export default function LoginPage() {
             </form>
 
             <div className="demo-credentials">
-              <p className="demo-title">✨ Demo Credentials</p>
+              <p className="demo-title">✨ Demo Accounts (Click to use)</p>
               <div className="demo-card">
-                <div className="demo-role">
+                <div 
+                  className="demo-role clickable" 
+                  onClick={() => fillDemoCredentials('admin')}
+                >
                   <span className="role-badge admin">Admin</span>
                   <div className="demo-details">
                     <span>admin@example.com</span>
                     <span className="demo-password">admin123</span>
                   </div>
                 </div>
-                <div className="demo-role">
-                  <span className="role-badge user">User</span>
+                <div 
+                  className="demo-role clickable" 
+                  onClick={() => fillDemoCredentials('guest')}
+                >
+                  <span className="role-badge user">Guest</span>
                   <div className="demo-details">
-                    <span>user@example.com</span>
-                    <span className="demo-password">user123</span>
+                    <span>guest@example.com</span>
+                    <span className="demo-password">guest123</span>
                   </div>
                 </div>
               </div>
@@ -178,7 +194,6 @@ export default function LoginPage() {
           }
         }
 
-        /* Left Illustration */
         .auth-illustration {
           flex: 1;
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -256,7 +271,6 @@ export default function LoginPage() {
           font-size: 1.3rem;
         }
 
-        /* Right Form */
         .auth-form-container {
           flex: 1;
           padding: 3rem;
@@ -425,7 +439,7 @@ export default function LoginPage() {
         .demo-card {
           background: #f7fafc;
           border-radius: 1rem;
-          padding: 1rem;
+          padding: 0.5rem;
           border: 1px solid #e2e8f0;
         }
 
@@ -433,12 +447,15 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           gap: 1rem;
-          padding: 0.75rem;
-          border-bottom: 1px solid #e2e8f0;
+          padding: 1rem;
+          border-radius: 0.5rem;
+          cursor: pointer;
+          transition: all 0.3s ease;
         }
 
-        .demo-role:last-child {
-          border-bottom: none;
+        .demo-role.clickable:hover {
+          background: #edf2f7;
+          transform: translateX(5px);
         }
 
         .role-badge {
@@ -447,6 +464,7 @@ export default function LoginPage() {
           font-size: 0.75rem;
           font-weight: 600;
           text-transform: uppercase;
+          min-width: 60px;
         }
 
         .role-badge.admin {

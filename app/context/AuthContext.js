@@ -40,6 +40,7 @@ export const AuthProvider = ({ children }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
+        credentials: 'include',
       })
       const data = await res.json()
       if (res.ok) {
@@ -47,7 +48,8 @@ export const AuthProvider = ({ children }) => {
       }
       return { ok: res.ok, data }
     } catch (error) {
-      return { ok: false, data: { error: 'Network error' } }
+      console.error('Login error:', error)
+      return { ok: false, data: { error: 'Network error. Please try again.' } }
     }
   }
 
@@ -57,6 +59,7 @@ export const AuthProvider = ({ children }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, name }),
+        credentials: 'include',
       })
       const data = await res.json()
       if (res.ok) {
@@ -64,13 +67,17 @@ export const AuthProvider = ({ children }) => {
       }
       return { ok: res.ok, data }
     } catch (error) {
-      return { ok: false, data: { error: 'Network error' } }
+      console.error('Registration error:', error)
+      return { ok: false, data: { error: 'Network error. Please try again.' } }
     }
   }
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
+      await fetch('/api/auth/logout', { 
+        method: 'POST',
+        credentials: 'include',
+      })
       setUser(null)
     } catch (error) {
       console.error('Logout failed:', error)

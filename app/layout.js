@@ -2,12 +2,9 @@ import { AuthProvider } from './context/AuthContext'
 import Navbar from './components/Navbar'
 import './globals.css'
 
-// Import Leaflet CSS
-import 'leaflet/dist/leaflet.css'
-
 export const metadata = {
-  title: 'Restroom Reviewer',
-  description: 'Find and review restrooms',
+  title: 'Restroom Reviewer - Davao City',
+  description: 'Find and review restrooms in Davao City',
 }
 
 export default function RootLayout({ children }) {
@@ -16,7 +13,7 @@ export default function RootLayout({ children }) {
       <body>
         <AuthProvider>
           <Navbar />
-          <main className="container mx-auto px-4 py-8">
+          <main className="container">
             {children}
           </main>
         </AuthProvider>
