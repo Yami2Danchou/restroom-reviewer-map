@@ -1,59 +1,82 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
+// Fix for default markers in Next.js
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+})
 
 // Davao City coordinates
 const DAVAO_CITY_CENTER = [7.1907, 125.4553]
 const DEFAULT_ZOOM = 13
 
+// Custom marker icons
+const createCustomIcon = (isSelected = false) => {
+  return L.divIcon({
+    className: 'custom-marker',
+    html: `<div style="
+      background-color: ${isSelected ? '#3b82f6' : '#ef4444'};
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
+      animation: ${isSelected ? 'pulse 1.5s infinite' : 'none'};
+    "></div>
+    <style>
+      @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); }
+      }
+    </style>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -15]
+  })
+}
+
 export default function Map({ places, onMapClick, selectedPosition, height = '600px' }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
-  const leafletRef = useRef(null)
-  const LRef = useRef(null)
+  const [mapReady, setMapReady] = useState(false)
 
+  // Ensure places is always an array
+  const placesArray = Array.isArray(places) ? places : []
+  
+  // Log for debugging
+  console.log('Map received places:', placesArray.length ? placesArray : 'No places yet')
+
+  // Initialize map
   useEffect(() => {
-    // Dynamically import Leaflet only on client side
-    const initMap = async () => {
-      if (!mapRef.current || mapInstanceRef.current) return
+    if (!mapRef.current || mapInstanceRef.current) return
 
-      try {
-        // Import Leaflet
-        const L = (await import('leaflet')).default
-        LRef.current = L
-        await import('leaflet/dist/leaflet.css')
+    // Initialize map centered on Davao City
+    mapInstanceRef.current = L.map(mapRef.current).setView(DAVAO_CITY_CENTER, DEFAULT_ZOOM)
 
-        // Fix for default markers
-        delete L.Icon.Default.prototype._getIconUrl
-        L.Icon.Default.mergeOptions({
-          iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-          iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-        })
+    // Add tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(mapInstanceRef.current)
 
-        // Initialize map
-        mapInstanceRef.current = L.map(mapRef.current).setView(DAVAO_CITY_CENTER, DEFAULT_ZOOM)
-
-        // Add tile layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(mapInstanceRef.current)
-
-        // Add click handler
-        if (onMapClick) {
-          mapInstanceRef.current.on('click', (e) => {
-            onMapClick(e.latlng)
-          })
-        }
-
-        leafletRef.current = L
-      } catch (error) {
-        console.error('Failed to initialize map:', error)
-      }
+    // Add click handler
+    if (onMapClick) {
+      mapInstanceRef.current.on('click', (e) => {
+        console.log('Map clicked at:', e.latlng)
+        onMapClick(e.latlng)
+      })
     }
 
-    initMap()
+    setMapReady(true)
 
     // Cleanup
     return () => {
@@ -64,99 +87,105 @@ export default function Map({ places, onMapClick, selectedPosition, height = '60
     }
   }, [onMapClick])
 
+  // Handle markers
   useEffect(() => {
-    if (!mapInstanceRef.current || !leafletRef.current) return
-
-    const L = leafletRef.current
+    if (!mapInstanceRef.current || !mapReady) return
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.remove())
     markersRef.current = []
 
-    // Custom marker icon function
-    const createCustomIcon = (isSelected = false) => {
-      return L.divIcon({
-        className: 'custom-marker',
-        html: `<div style="
-          background-color: ${isSelected ? '#3b82f6' : '#ef4444'};
-          width: 30px;
-          height: 30px;
-          border-radius: 50%;
-          border: 3px solid white;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        "></div>`,
-        iconSize: [30, 30],
-        iconAnchor: [15, 15],
-        popupAnchor: [0, -15]
+    // Add markers for each place (using placesArray)
+    if (placesArray.length > 0) {
+      console.log('Adding markers for', placesArray.length, 'places')
+      placesArray.forEach(place => {
+        // Skip if place doesn't have valid coordinates
+        if (!place || typeof place.latitude !== 'number' || typeof place.longitude !== 'number') {
+          console.warn('Invalid place data:', place)
+          return
+        }
+
+        const marker = L.marker([place.latitude, place.longitude], {
+          icon: createCustomIcon(false)
+        })
+          .addTo(mapInstanceRef.current)
+          .bindPopup(`
+            <div style="padding: 12px; min-width: 250px; font-family: 'Inter', sans-serif;">
+              <h3 style="font-weight: bold; font-size: 16px; margin-bottom: 8px; color: #2d3748;">${place.name || 'Unnamed'}</h3>
+              ${place.address ? `<p style="margin: 4px 0; font-size: 13px; color: #718096;">📍 ${place.address}</p>` : ''}
+              <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0;">
+                <span style="background: #fbbf24; padding: 4px 8px; border-radius: 20px; font-size: 12px; font-weight: bold;">
+                  ⭐ ${place.reviews?.length 
+                    ? (place.reviews.reduce((acc, r) => acc + r.rating, 0) / place.reviews.length).toFixed(1) 
+                    : 'No reviews'}
+                </span>
+                <span style="background: #e2e8f0; padding: 4px 8px; border-radius: 20px; font-size: 12px;">
+                  📝 ${place.reviews?.length || 0} reviews
+                </span>
+              </div>
+              <button 
+                onclick="(function() { 
+                  window.dispatchEvent(new CustomEvent('placeClick', { 
+                    detail: ${JSON.stringify(place).replace(/"/g, '&quot;')} 
+                  }))
+                })()"
+                style="
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white;
+                  border: none;
+                  padding: 8px 16px;
+                  border-radius: 20px;
+                  cursor: pointer;
+                  font-size: 13px;
+                  font-weight: 600;
+                  width: 100%;
+                  transition: all 0.3s ease;
+                  margin-top: 8px;
+                "
+                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102,126,234,0.4)';"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+              >
+                View Details
+              </button>
+            </div>
+          `)
+
+        markersRef.current.push(marker)
       })
     }
 
-    // Add markers for each place
-    places.forEach(place => {
-      const marker = L.marker([place.latitude, place.longitude], {
-        icon: createCustomIcon(false)
-      })
-        .addTo(mapInstanceRef.current)
-        .bindPopup(`
-          <div style="padding: 12px; min-width: 250px; font-family: Arial, sans-serif;">
-            <h3 style="font-weight: bold; font-size: 16px; margin-bottom: 8px; color: #2d3748;">${place.name}</h3>
-            ${place.address ? `<p style="margin: 4px 0; font-size: 13px; color: #718096;">📍 ${place.address}</p>` : ''}
-            <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0;">
-              <span style="background: #fbbf24; padding: 4px 8px; border-radius: 20px; font-size: 12px; font-weight: bold;">
-                ⭐ ${place.reviews?.length 
-                  ? (place.reviews.reduce((acc, r) => acc + r.rating, 0) / place.reviews.length).toFixed(1) 
-                  : 'No reviews'}
-              </span>
-              <span style="background: #e2e8f0; padding: 4px 8px; border-radius: 20px; font-size: 12px;">
-                📝 ${place.reviews?.length || 0} reviews
-              </span>
-            </div>
-            <button 
-              onclick="window.dispatchEvent(new CustomEvent('placeClick', { detail: ${JSON.stringify(place)} }))"
-              style="
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 20px;
-                cursor: pointer;
-                font-size: 13px;
-                font-weight: 600;
-                width: 100%;
-                margin-top: 8px;
-              "
-            >
-              View Details
-            </button>
-          </div>
-        `)
-
-      markersRef.current.push(marker)
-    })
-
     // Add marker for selected position
-    if (selectedPosition) {
+    if (selectedPosition && selectedPosition.lat && selectedPosition.lng) {
+      console.log('Adding selected position marker:', selectedPosition)
       const marker = L.marker([selectedPosition.lat, selectedPosition.lng], {
         icon: createCustomIcon(true)
       })
         .addTo(mapInstanceRef.current)
         .bindPopup(`
           <div style="padding: 12px; text-align: center;">
-            <strong style="color: #3b82f6;">Selected Location</strong>
-            <p style="margin: 4px 0; font-size: 12px; color: #718096;">
-              Click the form below to add a restroom
+            <strong style="color: #3b82f6; font-size: 16px;">📍 Selected Location</strong>
+            <p style="margin: 8px 0; font-size: 13px; color: #4a5568;">
+              Click the form below to ${window.user?.isAdmin ? 'add' : 'suggest'} a restroom
+            </p>
+            <p style="margin: 4px 0; font-size: 11px; color: #718096;">
+              Lat: ${selectedPosition.lat.toFixed(6)}, Lng: ${selectedPosition.lng.toFixed(6)}
             </p>
           </div>
         `)
         .openPopup()
 
       markersRef.current.push(marker)
+      
+      // Pan to the selected position
+      mapInstanceRef.current.setView([selectedPosition.lat, selectedPosition.lng], 16)
     }
 
     // Handle place click from popup
     const handlePlaceClick = (e) => {
       const place = e.detail
-      window.selectedPlaceCallback?.(place)
+      if (window.selectedPlaceCallback) {
+        window.selectedPlaceCallback(place)
+      }
     }
 
     window.addEventListener('placeClick', handlePlaceClick)
@@ -164,7 +193,7 @@ export default function Map({ places, onMapClick, selectedPosition, height = '60
     return () => {
       window.removeEventListener('placeClick', handlePlaceClick)
     }
-  }, [places, selectedPosition])
+  }, [placesArray, selectedPosition, mapReady])
 
   return (
     <div 
@@ -176,7 +205,7 @@ export default function Map({ places, onMapClick, selectedPosition, height = '60
         overflow: 'hidden',
         boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
         border: '3px solid white',
-        backgroundColor: '#f0f0f0'
+        cursor: 'crosshair'
       }} 
     />
   )

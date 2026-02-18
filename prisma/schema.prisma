@@ -1,12 +1,9 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql" // or "sqlite" for development
   url      = env("DATABASE_URL")
 }
 
@@ -20,6 +17,7 @@ model User {
   updatedAt     DateTime  @updatedAt
   reviews       Review[]
   pendingPlaces PendingPlace[]
+  places        Place[]   // Places directly added by admin
 }
 
 model Place {
@@ -29,22 +27,35 @@ model Place {
   latitude    Float
   longitude   Float
   address     String?
+  createdById String?  // If null, it was approved from pending
+  createdBy   User?    @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   reviews     Review[]
+  photos      Photo[]
+}
+
+model Photo {
+  id        String   @id @default(cuid())
+  url       String   // URL of the uploaded image
+  placeId   String
+  place     Place    @relation(fields: [placeId], references: [id])
+  uploadedById String
+  uploadedBy User    @relation(fields: [uploadedById], references: [id])
+  createdAt DateTime @default(now())
 }
 
 model Review {
   id          String   @id @default(cuid())
   rating      Int
   comment     String?
-  smellLevel  Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  smellLevel  Int      // 1-10 scale for smell intensity
   placeId     String
   place       Place    @relation(fields: [placeId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model PendingPlace {
@@ -54,7 +65,7 @@ model PendingPlace {
   latitude    Float
   longitude   Float
   address     String?
-  status      String   @default("pending")
+  status      String   @default("pending") // pending, approved, rejected
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())

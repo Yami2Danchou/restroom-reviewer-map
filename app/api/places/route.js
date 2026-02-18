@@ -18,14 +18,39 @@ export async function GET() {
               },
             },
           },
+          orderBy: {
+            createdAt: 'desc'
+          }
         },
+        photos: {
+          select: {
+            id: true,
+            url: true,
+            createdAt: true
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            isAdmin: true
+          }
+        }
       },
+      orderBy: {
+        createdAt: 'desc'
+      }
     })
-    return NextResponse.json(places)
+    
+    // Always return an array, even if empty
+    return NextResponse.json(places || [])
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to fetch places' },
-      { status: 500 }
-    )
+    console.error('Failed to fetch places:', error)
+    // Return empty array on error instead of error object
+    return NextResponse.json([])
   }
 }

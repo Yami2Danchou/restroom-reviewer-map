@@ -7,6 +7,12 @@ import { useRouter } from 'next/navigation'
 export default function AdminPage() {
   const [pendingPlaces, setPendingPlaces] = useState([])
   const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState({
+    total: 0,
+    approved: 0,
+    rejected: 0,
+    pending: 0
+  })
   const { user } = useAuth()
   const router = useRouter()
 
@@ -23,10 +29,16 @@ export default function AdminPage() {
   const fetchPendingPlaces = async () => {
     try {
       const res = await fetch('/api/admin/pending')
-      if (res.ok) {
-        const data = await res.json()
-        setPendingPlaces(data)
-      }
+      const data = await res.json()
+      setPendingPlaces(data)
+      
+      // Calculate stats
+      setStats({
+        total: data.length,
+        pending: data.filter(p => p.status === 'pending').length,
+        approved: data.filter(p => p.status === 'approved').length,
+        rejected: data.filter(p => p.status === 'rejected').length
+      })
     } catch (error) {
       console.error('Failed to fetch pending places:', error)
     } finally {
@@ -34,110 +46,106 @@ export default function AdminPage() {
     }
   }
 
-  const handleApprove = async (id) => {
+  const handleAction = async (id, action) => {
     try {
       const res = await fetch(`/api/admin/pending/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'approve' }),
+        body: JSON.stringify({ action }),
       })
 
       if (res.ok) {
-        alert('Place approved!')
+        alert(`✅ Suggestion ${action}ed successfully!`)
         fetchPendingPlaces()
       } else {
-        alert('Failed to approve place')
+        alert(`Failed to ${action} suggestion`)
       }
     } catch (error) {
-      console.error('Failed to approve:', error)
+      console.error(`Failed to ${action} suggestion:`, error)
     }
-  }
-
-  const handleReject = async (id) => {
-    try {
-      const res = await fetch(`/api/admin/pending/${id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reject' }),
-      })
-
-      if (res.ok) {
-        alert('Place rejected!')
-        fetchPendingPlaces()
-      } else {
-        alert('Failed to reject place')
-      }
-    } catch (error) {
-      console.error('Failed to reject:', error)
-    }
-  }
-
-  if (!user || !user.isAdmin) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-red-500">Access denied. Admin only.</p>
-      </div>
-    )
   }
 
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <p>Loading...</p>
+      <div className="flex justify-center items-center h-64">
+        <div className="spinner"></div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Admin Dashboard</h1>
       
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 border-b">
-          <h2 className="text-xl font-semibold">Pending Restroom Suggestions</h2>
+      {/* Stats Cards */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '1rem'
+      }}>
+        <div className="card" style={{ background: '#fef3c7' }}>
+          <h3 style={{ fontSize: '0.9rem', color: '#92400e' }}>Pending</h3>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#92400e' }}>{stats.pending}</p>
         </div>
-        
-        {pendingPlaces.length === 0 ? (
-          <div className="px-6 py-8 text-center text-gray-500">
-            No pending places to review
-          </div>
+        <div className="card" style={{ background: '#d1fae5' }}>
+          <h3 style={{ fontSize: '0.9rem', color: '#065f46' }}>Approved</h3>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#065f46' }}>{stats.approved}</p>
+        </div>
+        <div className="card" style={{ background: '#fee2e2' }}>
+          <h3 style={{ fontSize: '0.9rem', color: '#991b1b' }}>Rejected</h3>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#991b1b' }}>{stats.rejected}</p>
+        </div>
+        <div className="card" style={{ background: '#e2e8f0' }}>
+          <h3 style={{ fontSize: '0.9rem', color: '#2d3748' }}>Total</h3>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#2d3748' }}>{stats.total}</p>
+        </div>
+      </div>
+
+      {/* Pending Approvals */}
+      <div className="card">
+        <h2 className="text-xl font-bold mb-4">Guest Suggestions Pending Approval</h2>
+        {pendingPlaces.filter(p => p.status === 'pending').length === 0 ? (
+          <p className="text-gray-500">No pending suggestions to review</p>
         ) : (
-          <div className="divide-y">
-            {pendingPlaces.map((place) => (
-              <div key={place.id} className="px-6 py-4">
+          <div className="space-y-4">
+            {pendingPlaces.filter(p => p.status === 'pending').map((place) => (
+              <div key={place.id} className="border rounded-lg p-4 hover:shadow-lg transition-shadow">
                 <div className="flex justify-between items-start">
-                  <div className="flex-1">
+                  <div>
                     <h3 className="font-bold text-lg">{place.name}</h3>
-                    <p className="text-gray-600 text-sm mt-1">
-                      Submitted by: {place.user?.name || place.user?.email}
+                    <p className="text-gray-600">{place.description}</p>
+                    <p className="text-sm text-gray-500">📍 {place.address || 'No address provided'}</p>
+                    <p className="text-sm text-gray-500">
+                      Coordinates: {place.latitude.toFixed(6)}, {place.longitude.toFixed(6)}
                     </p>
-                    {place.description && (
-                      <p className="text-gray-700 mt-2">{place.description}</p>
-                    )}
-                    {place.address && (
-                      <p className="text-gray-500 text-sm mt-1">
-                        Address: {place.address}
-                      </p>
-                    )}
-                    <p className="text-gray-500 text-sm">
-                      Location: {place.latitude.toFixed(6)}, {place.longitude.toFixed(6)}
-                    </p>
-                    <p className="text-gray-400 text-xs mt-2">
-                      Submitted: {new Date(place.createdAt).toLocaleString()}
-                    </p>
+                    <div style={{
+                      display: 'flex',
+                      gap: '1rem',
+                      marginTop: '0.5rem',
+                      fontSize: '0.85rem'
+                    }}>
+                      <span style={{ color: '#718096' }}>
+                        👤 By: {place.user?.name || place.user?.email}
+                      </span>
+                      <span style={{ color: '#718096' }}>
+                        📅 {new Date(place.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex space-x-2 ml-4">
+                  <div className="space-x-2">
                     <button
-                      onClick={() => handleApprove(place.id)}
-                      className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 text-sm"
+                      onClick={() => handleAction(place.id, 'approve')}
+                      className="btn btn-success"
+                      style={{ padding: '0.5rem 1rem' }}
                     >
-                      Approve
+                      ✅ Approve
                     </button>
                     <button
-                      onClick={() => handleReject(place.id)}
-                      className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 text-sm"
+                      onClick={() => handleAction(place.id, 'reject')}
+                      className="btn btn-danger"
+                      style={{ padding: '0.5rem 1rem' }}
                     >
-                      Reject
+                      ❌ Reject
                     </button>
                   </div>
                 </div>
@@ -146,6 +154,30 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* History */}
+      {(stats.approved > 0 || stats.rejected > 0) && (
+        <div className="card">
+          <h2 className="text-xl font-bold mb-4">History</h2>
+          <div className="space-y-2">
+            {pendingPlaces.filter(p => p.status !== 'pending').map((place) => (
+              <div key={place.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <span className="font-medium">{place.name}</span>
+                  <span className="text-sm text-gray-500 ml-2">by {place.user?.name || place.user?.email}</span>
+                </div>
+                <span className={`px-3 py-1 rounded-full text-sm ${
+                  place.status === 'approved' 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {place.status === 'approved' ? '✅ Approved' : '❌ Rejected'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
