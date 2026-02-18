@@ -92,7 +92,7 @@ export default function Home() {
       })
 
       if (res.ok) {
-        alert('✅ Restroom submitted for approval!')
+        alert('Restroom submitted for approval!')
         setShowAddForm(false)
         setSelectedPosition(null)
         setFormData({ name: '', description: '', address: '' })
@@ -121,7 +121,7 @@ export default function Home() {
       })
 
       if (res.ok) {
-        alert('✅ Review submitted!')
+        alert('Review submitted!')
         setReviewData({ rating: 5, comment: '', smellLevel: 5 })
         fetchPlaces()
         setSelectedPlace(null)
@@ -146,13 +146,13 @@ export default function Home() {
       {/* Header */}
       <div className="card">
         <div className="card-header">
-          <h1 className="card-title">🚽 Davao City Restroom Finder</h1>
+          <h1 className="card-title"> Restroom Finder</h1>
           <p className="card-subtitle">
-            Find and review restrooms in Davao City {!user && '(login required to add)'}
+            Find and review restrooms {!user && '(login required to add)'}
           </p>
         </div>
         <div className="stats-badge">
-          <span className="stat-badge">{places.length} Restrooms in Davao City</span>
+          <span className="stat-badge">{places.length} Restrooms</span>
         </div>
       </div>
 
@@ -160,7 +160,7 @@ export default function Home() {
       <div className="card p-4">
         <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontSize: '1.2rem', fontWeight: '600', color: '#2d3748' }}>
-            📍 Davao City Map
+            Map
           </h2>
           <span style={{ background: '#e2e8f0', padding: '0.25rem 0.75rem', borderRadius: '2rem', fontSize: '0.85rem' }}>
             Click anywhere to add a restroom
@@ -177,7 +177,7 @@ export default function Home() {
       {/* Add New Restroom Form */}
       {showAddForm && user && (
         <div className="card">
-          <h2 className="card-title text-2xl mb-6">📍 Suggest New Restroom in Davao City</h2>
+          <h2 className="card-title text-2xl mb-6">Suggest New Restroom </h2>
           <form onSubmit={handlePlaceSubmit} className="space-y-4">
             <div className="form-group">
               <label className="form-label">Restroom Name *</label>
@@ -202,7 +202,7 @@ export default function Home() {
             </div>
             
             <div className="form-group">
-              <label className="form-label">Address in Davao City</label>
+              <label className="form-label">Address</label>
               <input
                 type="text"
                 value={formData.address}
@@ -311,7 +311,7 @@ export default function Home() {
           {/* Add Review Form */}
           {user && (
             <div className="border-t pt-6">
-              <h3 className="text-xl font-bold mb-4">📝 Add Your Review</h3>
+              <h3 className="text-xl font-bold mb-4"> Add Your Review</h3>
               <form onSubmit={handleReviewSubmit} className="space-y-4">
                 <div className="form-group">
                   <label className="form-label">Rating</label>
@@ -341,8 +341,8 @@ export default function Home() {
                     className="form-range"
                   />
                   <div className="flex justify-between text-sm text-gray-500 mt-1">
-                    <span>🌿 Fresh</span>
-                    <span>😤 Strong</span>
+                    <span> Fresh</span>
+                    <span> Strong</span>
                   </div>
                 </div>
 
