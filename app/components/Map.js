@@ -1,62 +1,59 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-
-// Fix for default markers in Next.js
-delete L.Icon.Default.prototype._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-})
 
 // Davao City coordinates
 const DAVAO_CITY_CENTER = [7.1907, 125.4553]
 const DEFAULT_ZOOM = 13
 
-// Custom marker icons
-const createCustomIcon = (isSelected = false) => {
-  return L.divIcon({
-    className: 'custom-marker',
-    html: `<div style="
-      background-color: ${isSelected ? '#3b82f6' : '#ef4444'};
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      border: 3px solid white;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-      transition: all 0.3s ease;
-    "></div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
-    popupAnchor: [0, -15]
-  })
-}
-
 export default function Map({ places, onMapClick, selectedPosition, height = '600px' }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
+  const leafletRef = useRef(null)
+  const LRef = useRef(null)
 
   useEffect(() => {
-    if (!mapInstanceRef.current && mapRef.current) {
-      // Initialize map centered on Davao City
-      mapInstanceRef.current = L.map(mapRef.current).setView(DAVAO_CITY_CENTER, DEFAULT_ZOOM)
+    // Dynamically import Leaflet only on client side
+    const initMap = async () => {
+      if (!mapRef.current || mapInstanceRef.current) return
 
-      // Add tile layer
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(mapInstanceRef.current)
+      try {
+        // Import Leaflet
+        const L = (await import('leaflet')).default
+        LRef.current = L
+        await import('leaflet/dist/leaflet.css')
 
-      // Add click handler
-      if (onMapClick) {
-        mapInstanceRef.current.on('click', (e) => {
-          onMapClick(e.latlng)
+        // Fix for default markers
+        delete L.Icon.Default.prototype._getIconUrl
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+          iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
         })
+
+        // Initialize map
+        mapInstanceRef.current = L.map(mapRef.current).setView(DAVAO_CITY_CENTER, DEFAULT_ZOOM)
+
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(mapInstanceRef.current)
+
+        // Add click handler
+        if (onMapClick) {
+          mapInstanceRef.current.on('click', (e) => {
+            onMapClick(e.latlng)
+          })
+        }
+
+        leafletRef.current = L
+      } catch (error) {
+        console.error('Failed to initialize map:', error)
       }
     }
+
+    initMap()
 
     // Cleanup
     return () => {
@@ -68,11 +65,31 @@ export default function Map({ places, onMapClick, selectedPosition, height = '60
   }, [onMapClick])
 
   useEffect(() => {
-    if (!mapInstanceRef.current) return
+    if (!mapInstanceRef.current || !leafletRef.current) return
+
+    const L = leafletRef.current
 
     // Clear existing markers
     markersRef.current.forEach(marker => marker.remove())
     markersRef.current = []
+
+    // Custom marker icon function
+    const createCustomIcon = (isSelected = false) => {
+      return L.divIcon({
+        className: 'custom-marker',
+        html: `<div style="
+          background-color: ${isSelected ? '#3b82f6' : '#ef4444'};
+          width: 30px;
+          height: 30px;
+          border-radius: 50%;
+          border: 3px solid white;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        "></div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15],
+        popupAnchor: [0, -15]
+      })
+    }
 
     // Add markers for each place
     places.forEach(place => {
@@ -81,7 +98,7 @@ export default function Map({ places, onMapClick, selectedPosition, height = '60
       })
         .addTo(mapInstanceRef.current)
         .bindPopup(`
-          <div style="padding: 12px; min-width: 250px; font-family: 'Inter', sans-serif;">
+          <div style="padding: 12px; min-width: 250px; font-family: Arial, sans-serif;">
             <h3 style="font-weight: bold; font-size: 16px; margin-bottom: 8px; color: #2d3748;">${place.name}</h3>
             ${place.address ? `<p style="margin: 4px 0; font-size: 13px; color: #718096;">📍 ${place.address}</p>` : ''}
             <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0;">
@@ -106,11 +123,8 @@ export default function Map({ places, onMapClick, selectedPosition, height = '60
                 font-size: 13px;
                 font-weight: 600;
                 width: 100%;
-                transition: all 0.3s ease;
                 margin-top: 8px;
               "
-              onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102,126,234,0.4)';"
-              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';"
             >
               View Details
             </button>
@@ -161,7 +175,8 @@ export default function Map({ places, onMapClick, selectedPosition, height = '60
         borderRadius: '1rem',
         overflow: 'hidden',
         boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-        border: '3px solid white'
+        border: '3px solid white',
+        backgroundColor: '#f0f0f0'
       }} 
     />
   )
