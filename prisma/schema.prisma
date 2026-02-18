@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // or "sqlite" for development
+  provider = "sqlite"  // Changed from "postgresql" to "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -17,7 +17,8 @@ model User {
   updatedAt     DateTime  @updatedAt
   reviews       Review[]
   pendingPlaces PendingPlace[]
-  places        Place[]   // Places directly added by admin
+  places        Place[]
+  photos        Photo[]
 }
 
 model Place {
@@ -27,7 +28,7 @@ model Place {
   latitude    Float
   longitude   Float
   address     String?
-  createdById String?  // If null, it was approved from pending
+  createdById String?
   createdBy   User?    @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -36,20 +37,20 @@ model Place {
 }
 
 model Photo {
-  id        String   @id @default(cuid())
-  url       String   // URL of the uploaded image
-  placeId   String
-  place     Place    @relation(fields: [placeId], references: [id])
+  id           String   @id @default(cuid())
+  url          String
+  placeId      String
+  place        Place    @relation(fields: [placeId], references: [id])
   uploadedById String
-  uploadedBy User    @relation(fields: [uploadedById], references: [id])
-  createdAt DateTime @default(now())
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
 }
 
 model Review {
   id          String   @id @default(cuid())
   rating      Int
   comment     String?
-  smellLevel  Int      // 1-10 scale for smell intensity
+  smellLevel  Int
   placeId     String
   place       Place    @relation(fields: [placeId], references: [id])
   userId      String
@@ -65,7 +66,7 @@ model PendingPlace {
   latitude    Float
   longitude   Float
   address     String?
-  status      String   @default("pending") // pending, approved, rejected
+  status      String   @default("pending")
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
