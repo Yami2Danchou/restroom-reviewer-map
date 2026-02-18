@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import prisma from '@/app/lib/prisma'
 import { authMiddleware } from '@/app/lib/middleware'
 
+export const dynamic = 'force-dynamic'
+
 async function handler(req) {
   try {
     const { placeId, rating, comment, smellLevel } = await req.json()

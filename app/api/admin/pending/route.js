@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import prisma from '@/app/lib/prisma'
 import { adminMiddleware } from '@/app/lib/middleware'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 async function getHandler(req) {
   try {
     const pendingPlaces = await prisma.pendingPlace.findMany({
