@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "postgresql" // or "sqlite" for local
   url      = env("DATABASE_URL")
 }
 
@@ -17,25 +17,25 @@ model User {
   updatedAt     DateTime  @updatedAt
   reviews       Review[]
   pendingPlaces PendingPlace[]
-  places        Place[]
-  photos        Photo[]
+  places        Place[]    // Places created by this user (if admin)
+  photos        Photo[]    // Photos uploaded by this user
 }
 
 model Place {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
   description String?
   latitude    Float
   longitude   Float
   address     String?
-  city        String?   // Store city name
-  country     String?   // Store country name
-  createdById String?
-  createdBy   User?    @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  reviews     Review[]
-  photos      Photo[]
+  city        String?
+  country     String?
+  createdById String?    // If null, it was approved from pending
+  createdBy   User?      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  reviews     Review[]   // This should be here
+  photos      Photo[]    // This should be here
 }
 
 model Photo {

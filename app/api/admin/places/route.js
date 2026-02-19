@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 async function handler(req) {
   try {
-    const { name, description, latitude, longitude, address } = await req.json()
+    const { name, description, latitude, longitude, address, city, country } = await req.json()
 
     if (!name || !latitude || !longitude) {
       return NextResponse.json(
@@ -23,7 +23,9 @@ async function handler(req) {
         latitude,
         longitude,
         address,
-        createdById: req.user.id // Track who created it
+        city,
+        country,
+        createdById: req.user.id
       },
       include: {
         createdBy: {

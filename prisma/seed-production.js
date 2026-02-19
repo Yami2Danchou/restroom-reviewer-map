@@ -1,51 +1,67 @@
 const { PrismaClient } = require('@prisma/client')
 const bcrypt = require('bcryptjs')
+const { v4: uuidv4 } = require('uuid')
 
 const prisma = new PrismaClient()
 
 async function main() {
   console.log('Starting production seed...')
   
-  // Create admin user if doesn't exist
-  const adminEmail = 'admin@example.com'
-  const adminExists = await prisma.user.findUnique({
+  const now = new Date()
+  
+  // Create admin user with new credentials
+  const adminEmail = 'admin@mail.com'
+  let admin = await prisma.user.findUnique({
     where: { email: adminEmail }
   })
 
-  if (!adminExists) {
-    const hashedPassword = await bcrypt.hash('admin123', 10)
-    await prisma.user.create({
+  if (!admin) {
+    const hashedPassword = await bcrypt.hash('qwerty123', 10)
+    admin = await prisma.user.create({
       data: {
+        id: uuidv4(),
         email: adminEmail,
         password: hashedPassword,
         name: 'Admin User',
-        isAdmin: true
+        isAdmin: true,
+        createdAt: now,
+        updatedAt: now
       }
     })
-    console.log('✅ Admin user created')
+    console.log('✅ Admin user created with email: admin@mail.com')
   } else {
-    console.log('✅ Admin user already exists')
+    // Update existing admin password if needed
+    const hashedPassword = await bcrypt.hash('qwerty123', 10)
+    admin = await prisma.user.update({
+      where: { email: adminEmail },
+      data: { 
+        password: hashedPassword,
+        updatedAt: now
+      }
+    })
+    console.log('✅ Admin user updated with new password')
   }
 
-  // Create guest user if doesn't exist
-  const guestEmail = 'guest@example.com'
-  const guestExists = await prisma.user.findUnique({
-    where: { email: guestEmail }
+  // Create a regular user for testing
+  const userEmail = 'user@mail.com'
+  let regularUser = await prisma.user.findUnique({
+    where: { email: userEmail }
   })
 
-  if (!guestExists) {
-    const hashedPassword = await bcrypt.hash('guest123', 10)
-    await prisma.user.create({
+  if (!regularUser) {
+    const hashedPassword = await bcrypt.hash('password123', 10)
+    regularUser = await prisma.user.create({
       data: {
-        email: guestEmail,
+        id: uuidv4(),
+        email: userEmail,
         password: hashedPassword,
-        name: 'Guest User',
-        isAdmin: false
+        name: 'Regular User',
+        isAdmin: false,
+        createdAt: now,
+        updatedAt: now
       }
     })
-    console.log('✅ Guest user created')
-  } else {
-    console.log('✅ Guest user already exists')
+    console.log('✅ Regular user created: user@mail.com / password123')
   }
 
   // Create sample places in different cities
@@ -76,6 +92,15 @@ async function main() {
       address: 'Oxford Circus, London',
       city: 'London',
       country: 'UK'
+    },
+    {
+      name: 'SM Mall of Asia Restroom',
+      description: 'Modern restroom facilities at MOA',
+      latitude: 14.5355,
+      longitude: 120.9826,
+      address: 'MOA, Pasay City',
+      city: 'Manila',
+      country: 'Philippines'
     }
   ]
 
@@ -86,15 +111,65 @@ async function main() {
 
     if (!existing) {
       await prisma.place.create({
-        data: placeData
+        data: {
+          id: uuidv4(),
+          ...placeData,
+          createdAt: now,
+          updatedAt: now
+        }
       })
       console.log(`✅ Sample place created: ${placeData.name}`)
+    } else {
+      console.log(`⏭️  Place already exists: ${placeData.name}`)
     }
   }
 
-  console.log('\n📝 Demo credentials:')
-  console.log('   Admin: admin@example.com / admin123')
-  console.log('   Guest: guest@example.com / guest123')
+  // Get all places for reviews
+  const places = await prisma.place.findMany()
+  
+  // Create sample reviews
+  for (const place of places) {
+    const reviewCount = await prisma.review.count({
+      where: { placeId: place.id }
+    })
+
+    if (reviewCount === 0 && admin && regularUser) {
+      // Add admin review
+      await prisma.review.create({
+        data: {
+          id: uuidv4(),
+          rating: 5,
+          comment: 'Very clean and well-maintained! Highly recommended.',
+          smellLevel: 2,
+          placeId: place.id,
+          userId: admin.id,
+          createdAt: now,
+          updatedAt: now
+        }
+      })
+
+      // Add user review
+      await prisma.review.create({
+        data: {
+          id: uuidv4(),
+          rating: 4,
+          comment: 'Good facilities, clean and accessible.',
+          smellLevel: 3,
+          placeId: place.id,
+          userId: regularUser.id,
+          createdAt: now,
+          updatedAt: now
+        }
+      })
+      
+      console.log(`✅ Sample reviews created for: ${place.name}`)
+    }
+  }
+
+  console.log('\n📝 Login credentials:')
+  console.log('   Admin: admin@mail.com / qwerty123')
+  console.log('   User: user@mail.com / password123')
+  console.log('\n✅ Production seed completed successfully!')
 }
 
 main()

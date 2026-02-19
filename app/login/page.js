@@ -33,16 +33,6 @@ export default function LoginPage() {
     }
   }
 
-  const fillDemoCredentials = (type) => {
-    if (type === 'admin') {
-      setEmail('admin@example.com')
-      setPassword('admin123')
-    } else {
-      setEmail('guest@example.com')
-      setPassword('guest123')
-    }
-  }
-
   return (
     <div className="auth-page">
       <div className="auth-container">
@@ -133,31 +123,7 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <div className="demo-credentials">
-              <p className="demo-title">✨ Demo Accounts (Click to use)</p>
-              <div className="demo-card">
-                <div 
-                  className="demo-role clickable" 
-                  onClick={() => fillDemoCredentials('admin')}
-                >
-                  <span className="role-badge admin">Admin</span>
-                  <div className="demo-details">
-                    <span>admin@example.com</span>
-                    <span className="demo-password">admin123</span>
-                  </div>
-                </div>
-                <div 
-                  className="demo-role clickable" 
-                  onClick={() => fillDemoCredentials('guest')}
-                >
-                  <span className="role-badge user">Guest</span>
-                  <div className="demo-details">
-                    <span>guest@example.com</span>
-                    <span className="demo-password">guest123</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Removed demo credentials section */}
           </div>
         </div>
       </div>
@@ -194,6 +160,7 @@ export default function LoginPage() {
           }
         }
 
+        /* Left Illustration */
         .auth-illustration {
           flex: 1;
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -271,6 +238,7 @@ export default function LoginPage() {
           font-size: 1.3rem;
         }
 
+        /* Right Form */
         .auth-form-container {
           flex: 1;
           padding: 3rem;
@@ -421,74 +389,6 @@ export default function LoginPage() {
 
         .btn-icon {
           font-size: 1.2rem;
-        }
-
-        .demo-credentials {
-          margin-top: 2rem;
-          text-align: center;
-        }
-
-        .demo-title {
-          font-size: 0.9rem;
-          color: #a0aec0;
-          margin-bottom: 1rem;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-        }
-
-        .demo-card {
-          background: #f7fafc;
-          border-radius: 1rem;
-          padding: 0.5rem;
-          border: 1px solid #e2e8f0;
-        }
-
-        .demo-role {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-          padding: 1rem;
-          border-radius: 0.5rem;
-          cursor: pointer;
-          transition: all 0.3s ease;
-        }
-
-        .demo-role.clickable:hover {
-          background: #edf2f7;
-          transform: translateX(5px);
-        }
-
-        .role-badge {
-          padding: 0.25rem 0.75rem;
-          border-radius: 2rem;
-          font-size: 0.75rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          min-width: 60px;
-        }
-
-        .role-badge.admin {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-        }
-
-        .role-badge.user {
-          background: #48bb78;
-          color: white;
-        }
-
-        .demo-details {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          font-size: 0.9rem;
-          color: #4a5568;
-        }
-
-        .demo-password {
-          font-size: 0.8rem;
-          color: #a0aec0;
-          font-family: monospace;
         }
 
         @media (max-width: 768px) {

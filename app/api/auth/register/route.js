@@ -27,11 +27,10 @@ export async function POST(request) {
       )
     }
 
-    // Check if trying to register with default admin/guest emails
-    const defaultEmails = ['admin@example.com', 'guest@example.com']
-    if (defaultEmails.includes(email)) {
+    // Check if trying to register with admin email
+    if (email.toLowerCase() === 'admin@mail.com') {
       return NextResponse.json(
-        { error: 'This email is reserved for demo accounts. Please use a different email.' },
+        { error: 'This email is reserved for the administrator.' },
         { status: 400 }
       )
     }

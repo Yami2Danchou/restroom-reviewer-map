@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { useAuth } from './context/AuthContext'
 import AdminAddPlace from './components/AdminAddPlace'
 import PhotoUpload from './components/PhotoUpload'
-import { getCityFromCoordinates } from './lib/location'
+import { getCurrentLocation, getLocationDetails, DEFAULT_LOCATION } from './lib/location'
 
 const Map = dynamic(() => import('./components/Map'), { 
   ssr: false,
@@ -19,9 +19,25 @@ const Map = dynamic(() => import('./components/Map'), {
       alignItems: 'center',
       justifyContent: 'center',
       color: 'white',
-      fontSize: '1.2rem'
+      fontSize: '1.2rem',
+      flexDirection: 'column',
+      gap: '1rem'
     }}>
-      <div className="spinner"></div>
+      <div className="spinner" style={{
+        width: '40px',
+        height: '40px',
+        border: '3px solid rgba(255,255,255,0.3)',
+        borderTop: '3px solid white',
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite'
+      }}></div>
+      <div>Loading map...</div>
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 })
@@ -33,6 +49,7 @@ export default function Home() {
   const [selectedPosition, setSelectedPosition] = useState(null)
   const [userLocation, setUserLocation] = useState(null)
   const [nearbyPlaces, setNearbyPlaces] = useState([])
+  const [loadingLocation, setLoadingLocation] = useState(true)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -45,23 +62,72 @@ export default function Home() {
   })
   const { user } = useAuth()
 
-  // Set up callback for map popup
-  useEffect(() => {
-    window.selectedPlaceCallback = (place) => {
-      console.log('Place selected from popup:', place)
-      setSelectedPlace(place)
-      setShowAddForm(false)
-      setSelectedPosition(null)
-    }
-    return () => {
-      window.selectedPlaceCallback = null
-    }
-  }, [])
-
+  // Fetch places on mount
   useEffect(() => {
     fetchPlaces()
   }, [])
 
+  // Replace the useEffect for location with this improved version
+useEffect(() => {
+  let isMounted = true
+
+  const getUserLocation = async () => {
+    try {
+      setLoadingLocation(true)
+      console.log('Attempting to get user location...')
+      
+      const location = await getCurrentLocation()
+      console.log('Got raw location:', location)
+      
+      // Get detailed location information
+      const details = await getLocationDetails(location.lat, location.lng)
+      console.log('Location details:', details)
+      
+      if (isMounted) {
+        setUserLocation({
+          ...location,
+          city: details.city,
+          country: details.country,
+          displayName: details.displayName,
+          fullAddress: details.fullAddress
+        })
+        
+        // Show success message
+        console.log(`📍 Located in ${details.city}, ${details.country}`)
+      }
+    } catch (error) {
+      console.warn('Location detection issue:', error.message)
+      
+      if (isMounted) {
+        // Show a prompt or use a more intelligent default
+        // For demo, we'll use a default but show a message
+        setUserLocation({
+          lat: 7.1907,
+          lng: 125.4553,
+          city: 'Davao City',
+          country: 'Philippines',
+          displayName: 'Davao City, Philippines',
+          fullAddress: 'Davao City, Philippines'
+        })
+        
+        // You could also show a toast notification here
+        alert('📍 Using Davao City as default location. Please enable location services for better results.')
+      }
+    } finally {
+      if (isMounted) {
+        setLoadingLocation(false)
+      }
+    }
+  }
+
+  getUserLocation()
+
+  return () => {
+    isMounted = false
+  }
+}, [])
+
+  // Find nearby places when location or places change
   useEffect(() => {
     if (userLocation && places.length > 0) {
       findNearbyPlaces()
@@ -91,6 +157,20 @@ export default function Home() {
         place.longitude
       )
       return distance <= 5 // Within 5km
+    }).sort((a, b) => {
+      const distA = calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        a.latitude,
+        a.longitude
+      )
+      const distB = calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        b.latitude,
+        b.longitude
+      )
+      return distA - distB
     })
 
     setNearbyPlaces(nearby)
@@ -120,17 +200,34 @@ export default function Home() {
       return
     }
     
-    // Get city info for the clicked location
-    const locationInfo = await getCityFromCoordinates(latlng.lat, latlng.lng)
+    // Get location details for the clicked point
+    const details = await getLocationDetails(latlng.lat, latlng.lng)
     
     setSelectedPosition({
       ...latlng,
-      city: locationInfo.city,
-      country: locationInfo.country
+      city: details.city,
+      country: details.country,
+      displayName: details.displayName
     })
     setShowAddForm(true)
     setSelectedPlace(null)
   }, [user])
+
+  // Handle place selection from map popup
+  const handlePlaceSelect = (place) => {
+    console.log('Place selected from map:', place)
+    setSelectedPlace(place)
+    setShowAddForm(false)
+    setSelectedPosition(null)
+    
+    // Scroll to the place details
+    setTimeout(() => {
+      document.getElementById('selected-place-details')?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      })
+    }, 100)
+  }
 
   const handleLocationFound = (location) => {
     setUserLocation(location)
@@ -143,12 +240,6 @@ export default function Home() {
       return
     }
 
-    // Get city info for the selected position
-    const locationInfo = await getCityFromCoordinates(
-      selectedPosition.lat, 
-      selectedPosition.lng
-    )
-
     try {
       const res = await fetch('/api/pending', {
         method: 'POST',
@@ -157,8 +248,8 @@ export default function Home() {
           ...formData,
           latitude: selectedPosition.lat,
           longitude: selectedPosition.lng,
-          city: locationInfo.city,
-          country: locationInfo.country
+          city: selectedPosition.city,
+          country: selectedPosition.country
         }),
       })
 
@@ -225,6 +316,17 @@ export default function Home() {
     return (sum / reviews.length).toFixed(1)
   }
 
+  const getDistanceFromUser = (placeLat, placeLng) => {
+    if (!userLocation) return null
+    const distance = calculateDistance(
+      userLocation.lat,
+      userLocation.lng,
+      placeLat,
+      placeLng
+    )
+    return distance.toFixed(1)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -237,26 +339,104 @@ export default function Home() {
             {user?.isAdmin && 'Admin: Add places directly or approve suggestions'}
           </p>
         </div>
-        {userLocation && (
+        
+        {/* Location Display */}
+        {loadingLocation ? (
           <div style={{
-            background: '#e2e8f0',
-            padding: '0.5rem 1rem',
+            background: '#f3f4f6',
+            padding: '0.75rem 1.5rem',
             borderRadius: '2rem',
-            display: 'inline-block',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
             marginTop: '0.5rem'
           }}>
-            📍 You are in {userLocation.city || 'Unknown'}, {userLocation.country || 'Unknown'}
+            <div className="spinner-small" style={{
+              width: '20px',
+              height: '20px',
+              border: '2px solid #e2e8f0',
+              borderTop: '2px solid #667eea',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }}></div>
+            <span style={{ color: '#4a5568' }}>Detecting your location...</span>
+          </div>
+        ) : userLocation && (
+          <div style={{
+            background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)',
+            padding: '0.75rem 1.5rem',
+            borderRadius: '2rem',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            marginTop: '0.5rem',
+            border: '1px solid #7dd3fc',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+            flexWrap: 'wrap'
+          }}>
+            <span style={{ fontSize: '1.5rem' }}>📍</span>
+            <div>
+              <span style={{ fontWeight: '600', color: '#0369a1' }}>
+                {userLocation.city}
+              </span>
+              {userLocation.country && userLocation.country !== 'Unknown' && (
+                <span style={{ color: '#0284c7', marginLeft: '0.25rem' }}>
+                  , {userLocation.country}
+                </span>
+              )}
+              {userLocation.accuracy && (
+                <span style={{ 
+                  fontSize: '0.75rem', 
+                  color: '#0284c7',
+                  marginLeft: '0.5rem',
+                  background: 'white',
+                  padding: '0.2rem 0.5rem',
+                  borderRadius: '1rem'
+                }}>
+                  ±{Math.round(userLocation.accuracy)}m accuracy
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>
 
       {/* Nearby Places Stats */}
       {userLocation && nearbyPlaces.length > 0 && (
-        <div className="card" style={{ background: '#d1fae5' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-            🏪 Restrooms Near You
-          </h3>
-          <p>{nearbyPlaces.length} restrooms within 5km of your location</p>
+        <div className="card" style={{ 
+          background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+          border: '1px solid #6ee7b7'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '2rem' }}>🏪</span>
+            <div>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#065f46' }}>
+                {nearbyPlaces.length} Restroom{nearbyPlaces.length !== 1 ? 's' : ''} Near You
+              </h3>
+              <p style={{ color: '#047857', fontSize: '0.9rem' }}>
+                Within 5km of your location
+              </p>
+            </div>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+              {nearbyPlaces.slice(0, 3).map((place, idx) => (
+                <span 
+                  key={idx} 
+                  style={{
+                    background: 'white',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '2rem',
+                    fontSize: '0.8rem',
+                    color: '#065f46',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => handlePlaceSelect(place)}
+                >
+                  {getDistanceFromUser(place.latitude, place.longitude)}km
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -282,9 +462,13 @@ export default function Home() {
                 borderRadius: '2rem', 
                 fontSize: '0.85rem',
                 color: '#065f46',
-                fontWeight: '600'
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
               }}>
-                👑 Admin Mode - Click to add places directly
+                <span>👑</span>
+                Admin Mode - Click to add places directly
               </span>
             ) : (
               <span style={{ 
@@ -292,9 +476,13 @@ export default function Home() {
                 padding: '0.5rem 1rem', 
                 borderRadius: '2rem', 
                 fontSize: '0.85rem',
-                color: '#4a5568'
+                color: '#4a5568',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
               }}>
-                👆 Click anywhere to suggest a restroom
+                <span>👆</span>
+                Click anywhere to suggest a restroom
               </span>
             )
           ) : (
@@ -303,9 +491,13 @@ export default function Home() {
               padding: '0.5rem 1rem', 
               borderRadius: '2rem', 
               fontSize: '0.85rem',
-              color: '#c53030'
+              color: '#c53030',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
             }}>
-              🔒 Login to add or suggest restrooms
+              <span>🔒</span>
+              Login to add or suggest restrooms
             </span>
           )}
         </div>
@@ -315,6 +507,7 @@ export default function Home() {
           selectedPosition={selectedPosition}
           userLocation={userLocation}
           onLocationFound={handleLocationFound}
+          onPlaceSelect={handlePlaceSelect}
           height="600px"
         />
       </div>
@@ -407,13 +600,26 @@ export default function Home() {
 
       {/* Selected Place Details */}
       {selectedPlace && (
-        <div className="card">
+        <div id="selected-place-details" className="card">
           <div className="flex justify-between items-start mb-6">
             <div>
               <h2 className="card-title text-2xl">{selectedPlace.name}</h2>
-              {selectedPlace.city && (
-                <p style={{ color: '#718096', fontSize: '0.9rem' }}>
+              {selectedPlace.city && selectedPlace.city !== 'Unknown' && (
+                <p style={{ color: '#718096', fontSize: '0.9rem', marginTop: '0.25rem' }}>
                   🏙️ {selectedPlace.city}, {selectedPlace.country || ''}
+                </p>
+              )}
+              {userLocation && (
+                <p style={{ 
+                  fontSize: '0.85rem', 
+                  color: '#059669',
+                  marginTop: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem'
+                }}>
+                  <span>📏</span>
+                  {getDistanceFromUser(selectedPlace.latitude, selectedPlace.longitude)} km from your location
                 </p>
               )}
               {selectedPlace.createdBy?.isAdmin && (
@@ -424,7 +630,8 @@ export default function Home() {
                   borderRadius: '2rem',
                   fontSize: '0.75rem',
                   fontWeight: '600',
-                  marginLeft: '0.5rem'
+                  display: 'inline-block',
+                  marginTop: '0.5rem'
                 }}>
                   👑 Added by Admin
                 </span>
@@ -460,17 +667,26 @@ export default function Home() {
                 gap: '1rem'
               }}>
                 {selectedPlace.photos.map(photo => (
-                  <div key={photo.id} style={{
-                    borderRadius: '0.5rem',
-                    overflow: 'hidden',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }}>
+                  <div 
+                    key={photo.id} 
+                    style={{
+                      borderRadius: '0.5rem',
+                      overflow: 'hidden',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      aspectRatio: '1',
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s'
+                    }}
+                    onClick={() => window.open(photo.url, '_blank')}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                  >
                     <img 
                       src={photo.url} 
                       alt="Restroom" 
                       style={{
                         width: '100%',
-                        height: '150px',
+                        height: '100%',
                         objectFit: 'cover'
                       }}
                     />
@@ -530,16 +746,32 @@ export default function Home() {
             {selectedPlace.reviews && selectedPlace.reviews.length > 0 ? (
               <div className="space-y-4">
                 {selectedPlace.reviews.map((review) => (
-                  <div key={review.id} className="review-item">
+                  <div key={review.id} className="review-item" style={{
+                    background: '#f9fafb',
+                    padding: '1rem',
+                    borderRadius: '1rem',
+                    border: '1px solid #e5e7eb'
+                  }}>
                     <div className="flex justify-between items-start mb-2">
                       <div className="rating-stars">
                         {[...Array(5)].map((_, i) => (
-                          <span key={i} className={i < review.rating ? 'star-filled' : 'star-empty'}>
+                          <span key={i} style={{
+                            color: i < review.rating ? '#fbbf24' : '#d1d5db',
+                            fontSize: '1.2rem',
+                            marginRight: '0.1rem'
+                          }}>
                             ★
                           </span>
                         ))}
                       </div>
-                      <span className={`smell-indicator ${getSmellLevelClass(review.smellLevel)}`}>
+                      <span style={{
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '2rem',
+                        fontSize: '0.85rem',
+                        fontWeight: '600',
+                        background: review.smellLevel <= 3 ? '#dcfce7' : review.smellLevel <= 7 ? '#fef3c7' : '#fee2e2',
+                        color: review.smellLevel <= 3 ? '#166534' : review.smellLevel <= 7 ? '#92400e' : '#991b1b'
+                      }}>
                         Smell: {review.smellLevel}/10
                       </span>
                     </div>
@@ -564,7 +796,13 @@ export default function Home() {
                 ))}
               </div>
             ) : (
-              <div className="alert alert-info">
+              <div className="alert alert-info" style={{
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                color: '#1e40af',
+                padding: '1rem',
+                borderRadius: '0.5rem'
+              }}>
                 No reviews yet. Be the first to review this restroom!
               </div>
             )}
@@ -581,6 +819,12 @@ export default function Home() {
                     value={reviewData.rating}
                     onChange={(e) => setReviewData({ ...reviewData, rating: parseInt(e.target.value) })}
                     className="form-select"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #d1d5db'
+                    }}
                   >
                     {[1, 2, 3, 4, 5].map((num) => (
                       <option key={num} value={num}>
@@ -601,6 +845,7 @@ export default function Home() {
                     value={reviewData.smellLevel}
                     onChange={(e) => setReviewData({ ...reviewData, smellLevel: parseInt(e.target.value) })}
                     className="form-range"
+                    style={{ width: '100%' }}
                   />
                   <div className="flex justify-between text-sm text-gray-500 mt-1">
                     <span>🌿 Fresh</span>
@@ -616,10 +861,24 @@ export default function Home() {
                     className="form-textarea"
                     placeholder="Share your experience..."
                     rows="3"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #d1d5db'
+                    }}
                   />
                 </div>
 
-                <button type="submit" className="btn btn-success">
+                <button type="submit" className="btn btn-success" style={{
+                  background: '#10b981',
+                  color: 'white',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.5rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}>
                   Submit Review
                 </button>
               </form>

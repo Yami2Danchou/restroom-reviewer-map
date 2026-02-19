@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { getCurrentLocation, DEFAULT_LOCATION } from '../lib/location'
 
 // Fix for default markers in Next.js
 delete L.Icon.Default.prototype._getIconUrl
@@ -12,6 +11,10 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 })
+
+// Default center (New York City as fallback)
+const DEFAULT_CENTER = [40.7128, -74.0060]
+const DEFAULT_ZOOM = 13
 
 // Custom marker icons
 const createCustomIcon = (type = 'default') => {
@@ -56,6 +59,7 @@ export default function Map({
   selectedPosition, 
   userLocation,
   onLocationFound,
+  onPlaceSelect,
   height = '600px' 
 }) {
   const mapRef = useRef(null)
@@ -69,25 +73,31 @@ export default function Map({
 
   // Get user location on mount
   useEffect(() => {
-    if (!locationAttempted) {
-      getCurrentLocation()
-        .then(location => {
+    if (!locationAttempted && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          }
           console.log('User location:', location)
           onLocationFound?.(location)
           if (mapInstanceRef.current) {
             mapInstanceRef.current.setView([location.lat, location.lng], 15)
           }
-        })
-        .catch(error => {
+        },
+        (error) => {
           console.log('Using default location:', error.message)
-          onLocationFound?.(DEFAULT_LOCATION)
-          if (mapInstanceRef.current) {
-            mapInstanceRef.current.setView([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng], 13)
-          }
-        })
-        .finally(() => {
-          setLocationAttempted(true)
-        })
+          onLocationFound?.({
+            lat: DEFAULT_CENTER[0],
+            lng: DEFAULT_CENTER[1],
+            city: 'New York',
+            country: 'USA'
+          })
+        }
+      )
+      setLocationAttempted(true)
     }
   }, [locationAttempted, onLocationFound])
 
@@ -95,11 +105,8 @@ export default function Map({
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return
 
-    // Initialize map with default view (will be updated when location is found)
-    mapInstanceRef.current = L.map(mapRef.current).setView(
-      [DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng], 
-      13
-    )
+    // Initialize map with default view
+    mapInstanceRef.current = L.map(mapRef.current).setView(DEFAULT_CENTER, DEFAULT_ZOOM)
 
     // Add tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -135,25 +142,26 @@ export default function Map({
     markersRef.current = []
 
     // Add user location marker
-    if (userLocation) {
+    if (userLocation && userLocation.lat && userLocation.lng) {
+      const popupContent = `
+        <div style="padding: 12px; text-align: center; font-family: system-ui, sans-serif;">
+          <strong style="color: #10b981; font-size: 16px;">📍 You are here</strong>
+          <p style="margin: 8px 0; font-size: 14px; font-weight: 500; color: #2d3748;">
+            ${userLocation.city || 'Current Location'}${userLocation.country ? `, ${userLocation.country}` : ''}
+          </p>
+          ${userLocation.accuracy ? `
+            <p style="margin: 4px 0; font-size: 11px; color: #718096;">
+              Accuracy: ±${Math.round(userLocation.accuracy)}m
+            </p>
+          ` : ''}
+        </div>
+      `
+
       const userMarker = L.marker([userLocation.lat, userLocation.lng], {
         icon: createCustomIcon('user')
       })
         .addTo(mapInstanceRef.current)
-        .bindPopup(`
-          <div style="padding: 12px; text-align: center;">
-            <strong style="color: #10b981; font-size: 16px;">📍 You are here</strong>
-            <p style="margin: 8px 0; font-size: 13px; color: #4a5568;">
-              ${userLocation.city || 'Current Location'}, ${userLocation.country || ''}
-            </p>
-            ${userLocation.accuracy ? `
-              <p style="margin: 4px 0; font-size: 11px; color: #718096;">
-                Accuracy: ±${Math.round(userLocation.accuracy)}m
-              </p>
-            ` : ''}
-          </div>
-        `)
-        .openPopup()
+        .bindPopup(popupContent)
 
       markersRef.current.push(userMarker)
     }
@@ -170,65 +178,117 @@ export default function Map({
         const marker = L.marker([place.latitude, place.longitude], {
           icon: createCustomIcon('default')
         })
-          .addTo(mapInstanceRef.current)
-          .bindPopup(`
-            <div style="padding: 12px; min-width: 250px; font-family: system-ui, sans-serif;">
-              <h3 style="font-weight: bold; font-size: 16px; margin-bottom: 8px; color: #2d3748;">
-                ${place.name || 'Unnamed'}
-              </h3>
-              ${place.address ? `
-                <p style="margin: 4px 0; font-size: 13px; color: #718096;">
-                  📍 ${place.address}
-                </p>
-              ` : ''}
-              ${place.city ? `
-                <p style="margin: 4px 0; font-size: 12px; color: #718096;">
-                  🏙️ ${place.city}, ${place.country || ''}
-                </p>
-              ` : ''}
-              <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0;">
-                <span style="background: #fbbf24; padding: 4px 8px; border-radius: 20px; font-size: 12px; font-weight: bold;">
-                  ⭐ ${place.reviews?.length 
-                    ? (place.reviews.reduce((acc, r) => acc + r.rating, 0) / place.reviews.length).toFixed(1) 
-                    : 'No reviews'}
-                </span>
-                <span style="background: #e2e8f0; padding: 4px 8px; border-radius: 20px; font-size: 12px;">
-                  📝 ${place.reviews?.length || 0} reviews
-                </span>
-              </div>
-              <button 
-                onclick="(function() { 
-                  window.dispatchEvent(new CustomEvent('placeClick', { 
-                    detail: ${JSON.stringify(place).replace(/"/g, '&quot;')} 
-                  }))
-                })()"
-                style="
-                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                  color: white;
-                  border: none;
-                  padding: 8px 16px;
-                  border-radius: 20px;
-                  cursor: pointer;
-                  font-size: 13px;
-                  font-weight: 600;
-                  width: 100%;
-                  transition: all 0.3s ease;
-                  margin-top: 8px;
-                "
-                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102,126,234,0.4)';"
-                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';"
-              >
-                View Details
-              </button>
-            </div>
-          `)
+
+        // Create popup content
+        const popupContent = document.createElement('div')
+        popupContent.style.padding = '12px'
+        popupContent.style.minWidth = '250px'
+        popupContent.style.fontFamily = 'system-ui, sans-serif'
+        
+        // Add place name
+        const nameEl = document.createElement('h3')
+        nameEl.style.fontWeight = 'bold'
+        nameEl.style.fontSize = '16px'
+        nameEl.style.marginBottom = '8px'
+        nameEl.style.color = '#2d3748'
+        nameEl.textContent = place.name || 'Unnamed'
+        popupContent.appendChild(nameEl)
+        
+        // Add address if exists
+        if (place.address) {
+          const addressEl = document.createElement('p')
+          addressEl.style.margin = '4px 0'
+          addressEl.style.fontSize = '13px'
+          addressEl.style.color = '#718096'
+          addressEl.innerHTML = `📍 ${place.address}`
+          popupContent.appendChild(addressEl)
+        }
+        
+        // Add city if exists
+        if (place.city) {
+          const cityEl = document.createElement('p')
+          cityEl.style.margin = '4px 0'
+          cityEl.style.fontSize = '12px'
+          cityEl.style.color = '#718096'
+          cityEl.innerHTML = `🏙️ ${place.city}${place.country ? `, ${place.country}` : ''}`
+          popupContent.appendChild(cityEl)
+        }
+        
+        // Add stats
+        const statsDiv = document.createElement('div')
+        statsDiv.style.display = 'flex'
+        statsDiv.style.alignItems = 'center'
+        statsDiv.style.gap = '8px'
+        statsDiv.style.margin = '8px 0'
+        
+        const ratingSpan = document.createElement('span')
+        ratingSpan.style.background = '#fbbf24'
+        ratingSpan.style.padding = '4px 8px'
+        ratingSpan.style.borderRadius = '20px'
+        ratingSpan.style.fontSize = '12px'
+        ratingSpan.style.fontWeight = 'bold'
+        ratingSpan.textContent = `⭐ ${place.reviews?.length 
+          ? (place.reviews.reduce((acc, r) => acc + r.rating, 0) / place.reviews.length).toFixed(1) 
+          : 'No reviews'}`
+        statsDiv.appendChild(ratingSpan)
+        
+        const reviewSpan = document.createElement('span')
+        reviewSpan.style.background = '#e2e8f0'
+        reviewSpan.style.padding = '4px 8px'
+        reviewSpan.style.borderRadius = '20px'
+        reviewSpan.style.fontSize = '12px'
+        reviewSpan.textContent = `📝 ${place.reviews?.length || 0} reviews`
+        statsDiv.appendChild(reviewSpan)
+        
+        popupContent.appendChild(statsDiv)
+        
+        // Add button
+        const button = document.createElement('button')
+        button.textContent = 'View Details'
+        button.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+        button.style.color = 'white'
+        button.style.border = 'none'
+        button.style.padding = '8px 16px'
+        button.style.borderRadius = '20px'
+        button.style.cursor = 'pointer'
+        button.style.fontSize = '13px'
+        button.style.fontWeight = '600'
+        button.style.width = '100%'
+        button.style.marginTop = '8px'
+        button.style.transition = 'all 0.3s ease'
+        
+        button.onmouseover = () => {
+          button.style.transform = 'translateY(-2px)'
+          button.style.boxShadow = '0 4px 12px rgba(102,126,234,0.4)'
+        }
+        button.onmouseout = () => {
+          button.style.transform = 'translateY(0)'
+          button.style.boxShadow = 'none'
+        }
+        
+        // Add click handler directly
+        button.onclick = () => {
+          console.log('Button clicked for place:', place)
+          if (onPlaceSelect) {
+            onPlaceSelect(place)
+          }
+          // Close the popup
+          mapInstanceRef.current.closePopup()
+        }
+        
+        popupContent.appendChild(button)
+        
+        // Bind popup with the created content
+        marker.bindPopup(popupContent)
+        marker.addTo(mapInstanceRef.current)
 
         markersRef.current.push(marker)
       })
     }
 
-    // Add marker for selected position
+    // Add marker for selected position - WITH NULL CHECK
     if (selectedPosition && selectedPosition.lat && selectedPosition.lng) {
+      console.log('Adding selected position marker:', selectedPosition)
       const marker = L.marker([selectedPosition.lat, selectedPosition.lng], {
         icon: createCustomIcon('selected')
       })
@@ -249,20 +309,16 @@ export default function Map({
       mapInstanceRef.current.setView([selectedPosition.lat, selectedPosition.lng], 16)
     }
 
-    // Handle place click from popup
-    const handlePlaceClick = (e) => {
-      const place = e.detail
-      if (window.selectedPlaceCallback) {
-        window.selectedPlaceCallback(place)
-      }
-    }
+    // Add click event listeners to the buttons after popup is opened
+    mapInstanceRef.current.on('popupopen', function(e) {
+      setTimeout(() => {
+        placesArray.forEach(place => {
+          // This is handled by the direct button onclick above
+        })
+      }, 100)
+    })
 
-    window.addEventListener('placeClick', handlePlaceClick)
-
-    return () => {
-      window.removeEventListener('placeClick', handlePlaceClick)
-    }
-  }, [placesArray, selectedPosition, userLocation, mapReady])
+  }, [placesArray, selectedPosition, userLocation, mapReady, onPlaceSelect])
 
   return (
     <div 

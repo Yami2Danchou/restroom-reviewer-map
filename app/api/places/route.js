@@ -46,11 +46,9 @@ export async function GET() {
       }
     })
     
-    // Always return an array, even if empty
     return NextResponse.json(places || [])
   } catch (error) {
     console.error('Failed to fetch places:', error)
-    // Return empty array on error instead of error object
-    return NextResponse.json([])
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
