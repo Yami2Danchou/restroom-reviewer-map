@@ -111,7 +111,7 @@ useEffect(() => {
         })
         
         // You could also show a toast notification here
-        alert('📍 Using Davao City as default location. Please enable location services for better results.')
+        alert('📍 Using USA as default location. Please enable location services for better results.')
       }
     } finally {
       if (isMounted) {
