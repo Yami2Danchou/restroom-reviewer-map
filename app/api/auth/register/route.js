@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import prisma from '@/app/lib/prisma'
 import { hashPassword, generateToken } from '@/app/lib/auth'
 import { cookies } from 'next/headers'
-import { ensureDefaultUsers } from '@/app/lib/seed'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +16,17 @@ export async function POST(request) {
       )
     }
 
+    // Test database connection
+    try {
+      await prisma.$queryRaw`SELECT 1`
+    } catch (dbError) {
+      console.error('Database connection failed:', dbError)
+      return NextResponse.json(
+        { error: 'Database connection failed. Please try again later.' },
+        { status: 503 }
+      )
+    }
+
     // Check if trying to register with default admin/guest emails
     const defaultEmails = ['admin@example.com', 'guest@example.com']
     if (defaultEmails.includes(email)) {
@@ -25,9 +35,6 @@ export async function POST(request) {
         { status: 400 }
       )
     }
-
-    // Ensure default users exist (this will run once)
-    await ensureDefaultUsers()
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -57,8 +64,9 @@ export async function POST(request) {
     cookies().set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
     })
 
     const { password: _, ...userWithoutPassword } = user
