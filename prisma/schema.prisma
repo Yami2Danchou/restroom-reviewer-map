@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"  // Changed from "postgresql" to "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -28,6 +28,8 @@ model Place {
   latitude    Float
   longitude   Float
   address     String?
+  city        String?   // Store city name
+  country     String?   // Store country name
   createdById String?
   createdBy   User?    @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
@@ -66,6 +68,8 @@ model PendingPlace {
   latitude    Float
   longitude   Float
   address     String?
+  city        String?
+  country     String?
   status      String   @default("pending")
   userId      String
   user        User     @relation(fields: [userId], references: [id])

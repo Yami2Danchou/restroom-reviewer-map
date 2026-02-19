@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { getCurrentLocation, DEFAULT_LOCATION } from '../lib/location'
 
 // Fix for default markers in Next.js
 delete L.Icon.Default.prototype._getIconUrl
@@ -12,55 +13,93 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 })
 
-// Davao City coordinates
-const DAVAO_CITY_CENTER = [7.1907, 125.4553]
-const DEFAULT_ZOOM = 13
-
 // Custom marker icons
-const createCustomIcon = (isSelected = false) => {
+const createCustomIcon = (type = 'default') => {
+  const colors = {
+    default: '#ef4444',
+    selected: '#3b82f6',
+    user: '#10b981'
+  }
+  
   return L.divIcon({
     className: 'custom-marker',
     html: `<div style="
-      background-color: ${isSelected ? '#3b82f6' : '#ef4444'};
-      width: 30px;
-      height: 30px;
+      background-color: ${colors[type] || colors.default};
+      width: ${type === 'user' ? '40px' : '30px'};
+      height: ${type === 'user' ? '40px' : '30px'};
       border-radius: 50%;
       border: 3px solid white;
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
       transition: all 0.3s ease;
-      animation: ${isSelected ? 'pulse 1.5s infinite' : 'none'};
-    "></div>
+      animation: ${type === 'user' ? 'pulse 2s infinite' : type === 'selected' ? 'pulse 1.5s infinite' : 'none'};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: ${type === 'user' ? '20px' : '16px'};
+    ">${type === 'user' ? '📍' : ''}</div>
     <style>
       @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.2); }
-        100% { transform: scale(1); }
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.2); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
       }
     </style>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
-    popupAnchor: [0, -15]
+    iconSize: type === 'user' ? [40, 40] : [30, 30],
+    iconAnchor: type === 'user' ? [20, 20] : [15, 15],
+    popupAnchor: [0, type === 'user' ? -20 : -15]
   })
 }
 
-export default function Map({ places, onMapClick, selectedPosition, height = '600px' }) {
+export default function Map({ 
+  places, 
+  onMapClick, 
+  selectedPosition, 
+  userLocation,
+  onLocationFound,
+  height = '600px' 
+}) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
   const [mapReady, setMapReady] = useState(false)
+  const [locationAttempted, setLocationAttempted] = useState(false)
 
   // Ensure places is always an array
   const placesArray = Array.isArray(places) ? places : []
-  
-  // Log for debugging
-  console.log('Map received places:', placesArray.length ? placesArray : 'No places yet')
+
+  // Get user location on mount
+  useEffect(() => {
+    if (!locationAttempted) {
+      getCurrentLocation()
+        .then(location => {
+          console.log('User location:', location)
+          onLocationFound?.(location)
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.setView([location.lat, location.lng], 15)
+          }
+        })
+        .catch(error => {
+          console.log('Using default location:', error.message)
+          onLocationFound?.(DEFAULT_LOCATION)
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.setView([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng], 13)
+          }
+        })
+        .finally(() => {
+          setLocationAttempted(true)
+        })
+    }
+  }, [locationAttempted, onLocationFound])
 
   // Initialize map
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return
 
-    // Initialize map centered on Davao City
-    mapInstanceRef.current = L.map(mapRef.current).setView(DAVAO_CITY_CENTER, DEFAULT_ZOOM)
+    // Initialize map with default view (will be updated when location is found)
+    mapInstanceRef.current = L.map(mapRef.current).setView(
+      [DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng], 
+      13
+    )
 
     // Add tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -95,24 +134,58 @@ export default function Map({ places, onMapClick, selectedPosition, height = '60
     markersRef.current.forEach(marker => marker.remove())
     markersRef.current = []
 
-    // Add markers for each place (using placesArray)
+    // Add user location marker
+    if (userLocation) {
+      const userMarker = L.marker([userLocation.lat, userLocation.lng], {
+        icon: createCustomIcon('user')
+      })
+        .addTo(mapInstanceRef.current)
+        .bindPopup(`
+          <div style="padding: 12px; text-align: center;">
+            <strong style="color: #10b981; font-size: 16px;">📍 You are here</strong>
+            <p style="margin: 8px 0; font-size: 13px; color: #4a5568;">
+              ${userLocation.city || 'Current Location'}, ${userLocation.country || ''}
+            </p>
+            ${userLocation.accuracy ? `
+              <p style="margin: 4px 0; font-size: 11px; color: #718096;">
+                Accuracy: ±${Math.round(userLocation.accuracy)}m
+              </p>
+            ` : ''}
+          </div>
+        `)
+        .openPopup()
+
+      markersRef.current.push(userMarker)
+    }
+
+    // Add markers for each place
     if (placesArray.length > 0) {
       console.log('Adding markers for', placesArray.length, 'places')
       placesArray.forEach(place => {
-        // Skip if place doesn't have valid coordinates
         if (!place || typeof place.latitude !== 'number' || typeof place.longitude !== 'number') {
           console.warn('Invalid place data:', place)
           return
         }
 
         const marker = L.marker([place.latitude, place.longitude], {
-          icon: createCustomIcon(false)
+          icon: createCustomIcon('default')
         })
           .addTo(mapInstanceRef.current)
           .bindPopup(`
-            <div style="padding: 12px; min-width: 250px; font-family: 'Inter', sans-serif;">
-              <h3 style="font-weight: bold; font-size: 16px; margin-bottom: 8px; color: #2d3748;">${place.name || 'Unnamed'}</h3>
-              ${place.address ? `<p style="margin: 4px 0; font-size: 13px; color: #718096;">📍 ${place.address}</p>` : ''}
+            <div style="padding: 12px; min-width: 250px; font-family: system-ui, sans-serif;">
+              <h3 style="font-weight: bold; font-size: 16px; margin-bottom: 8px; color: #2d3748;">
+                ${place.name || 'Unnamed'}
+              </h3>
+              ${place.address ? `
+                <p style="margin: 4px 0; font-size: 13px; color: #718096;">
+                  📍 ${place.address}
+                </p>
+              ` : ''}
+              ${place.city ? `
+                <p style="margin: 4px 0; font-size: 12px; color: #718096;">
+                  🏙️ ${place.city}, ${place.country || ''}
+                </p>
+              ` : ''}
               <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0;">
                 <span style="background: #fbbf24; padding: 4px 8px; border-radius: 20px; font-size: 12px; font-weight: bold;">
                   ⭐ ${place.reviews?.length 
@@ -156,19 +229,15 @@ export default function Map({ places, onMapClick, selectedPosition, height = '60
 
     // Add marker for selected position
     if (selectedPosition && selectedPosition.lat && selectedPosition.lng) {
-      console.log('Adding selected position marker:', selectedPosition)
       const marker = L.marker([selectedPosition.lat, selectedPosition.lng], {
-        icon: createCustomIcon(true)
+        icon: createCustomIcon('selected')
       })
         .addTo(mapInstanceRef.current)
         .bindPopup(`
           <div style="padding: 12px; text-align: center;">
             <strong style="color: #3b82f6; font-size: 16px;">📍 Selected Location</strong>
             <p style="margin: 8px 0; font-size: 13px; color: #4a5568;">
-              Click the form below to ${window.user?.isAdmin ? 'add' : 'suggest'} a restroom
-            </p>
-            <p style="margin: 4px 0; font-size: 11px; color: #718096;">
-              Lat: ${selectedPosition.lat.toFixed(6)}, Lng: ${selectedPosition.lng.toFixed(6)}
+              Click the form below to add/suggest a restroom
             </p>
           </div>
         `)
@@ -193,7 +262,7 @@ export default function Map({ places, onMapClick, selectedPosition, height = '60
     return () => {
       window.removeEventListener('placeClick', handlePlaceClick)
     }
-  }, [placesArray, selectedPosition, mapReady])
+  }, [placesArray, selectedPosition, userLocation, mapReady])
 
   return (
     <div 

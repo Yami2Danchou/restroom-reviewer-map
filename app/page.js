@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { useAuth } from './context/AuthContext'
 import AdminAddPlace from './components/AdminAddPlace'
 import PhotoUpload from './components/PhotoUpload'
+import { getCityFromCoordinates } from './lib/location'
 
 const Map = dynamic(() => import('./components/Map'), { 
   ssr: false,
@@ -30,6 +31,8 @@ export default function Home() {
   const [selectedPlace, setSelectedPlace] = useState(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedPosition, setSelectedPosition] = useState(null)
+  const [userLocation, setUserLocation] = useState(null)
+  const [nearbyPlaces, setNearbyPlaces] = useState([])
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -59,29 +62,79 @@ export default function Home() {
     fetchPlaces()
   }, [])
 
-  const fetchPlaces = async () => {
-  try {
-    const res = await fetch('/api/places')
-    const data = await res.json()
-    console.log('Fetched places:', data)
-    // Ensure data is an array
-    setPlaces(Array.isArray(data) ? data : [])
-  } catch (error) {
-    console.error('Failed to fetch places:', error)
-    setPlaces([]) // Set empty array on error
-  }
-}
+  useEffect(() => {
+    if (userLocation && places.length > 0) {
+      findNearbyPlaces()
+    }
+  }, [userLocation, places])
 
-  const handleMapClick = useCallback((latlng) => {
+  const fetchPlaces = async () => {
+    try {
+      const res = await fetch('/api/places')
+      const data = await res.json()
+      console.log('Fetched places:', data)
+      setPlaces(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Failed to fetch places:', error)
+      setPlaces([])
+    }
+  }
+
+  const findNearbyPlaces = () => {
+    if (!userLocation || !places.length) return
+
+    const nearby = places.filter(place => {
+      const distance = calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        place.latitude,
+        place.longitude
+      )
+      return distance <= 5 // Within 5km
+    })
+
+    setNearbyPlaces(nearby)
+  }
+
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371 // Radius of the earth in km
+    const dLat = deg2rad(lat2 - lat1)
+    const dLon = deg2rad(lon2 - lon1)
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+    const d = R * c // Distance in km
+    return d
+  }
+
+  const deg2rad = (deg) => {
+    return deg * (Math.PI/180)
+  }
+
+  const handleMapClick = useCallback(async (latlng) => {
     console.log('Map click handler called:', latlng)
     if (!user) {
       alert('Please login to add or suggest restrooms')
       return
     }
-    setSelectedPosition(latlng)
+    
+    // Get city info for the clicked location
+    const locationInfo = await getCityFromCoordinates(latlng.lat, latlng.lng)
+    
+    setSelectedPosition({
+      ...latlng,
+      city: locationInfo.city,
+      country: locationInfo.country
+    })
     setShowAddForm(true)
     setSelectedPlace(null)
   }, [user])
+
+  const handleLocationFound = (location) => {
+    setUserLocation(location)
+  }
 
   const handleGuestPlaceSubmit = async (e) => {
     e.preventDefault()
@@ -89,6 +142,12 @@ export default function Home() {
       alert('Please select a location on the map first')
       return
     }
+
+    // Get city info for the selected position
+    const locationInfo = await getCityFromCoordinates(
+      selectedPosition.lat, 
+      selectedPosition.lng
+    )
 
     try {
       const res = await fetch('/api/pending', {
@@ -98,6 +157,8 @@ export default function Home() {
           ...formData,
           latitude: selectedPosition.lat,
           longitude: selectedPosition.lng,
+          city: locationInfo.city,
+          country: locationInfo.country
         }),
       })
 
@@ -169,17 +230,35 @@ export default function Home() {
       {/* Header */}
       <div className="card">
         <div className="card-header">
-          <h1 className="card-title">🚽 Davao City Restroom Finder</h1>
+          <h1 className="card-title">🚽 Global Restroom Finder</h1>
           <p className="card-subtitle">
             {!user && 'Login to contribute'}
-            {user && !user.isAdmin && 'Suggest restrooms for admin approval'}
-            {user?.isAdmin && 'Admin: You can add places directly or approve suggestions'}
+            {user && !user.isAdmin && 'Click on map to suggest restrooms'}
+            {user?.isAdmin && 'Admin: Add places directly or approve suggestions'}
           </p>
         </div>
-        <div className="stats-badge">
-          <span className="stat-badge">{places.length} Restrooms in Davao City</span>
-        </div>
+        {userLocation && (
+          <div style={{
+            background: '#e2e8f0',
+            padding: '0.5rem 1rem',
+            borderRadius: '2rem',
+            display: 'inline-block',
+            marginTop: '0.5rem'
+          }}>
+            📍 You are in {userLocation.city || 'Unknown'}, {userLocation.country || 'Unknown'}
+          </div>
+        )}
       </div>
+
+      {/* Nearby Places Stats */}
+      {userLocation && nearbyPlaces.length > 0 && (
+        <div className="card" style={{ background: '#d1fae5' }}>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            🏪 Restrooms Near You
+          </h3>
+          <p>{nearbyPlaces.length} restrooms within 5km of your location</p>
+        </div>
+      )}
 
       {/* Map Container */}
       <div className="card p-4">
@@ -193,7 +272,7 @@ export default function Home() {
           gap: '1rem'
         }}>
           <h2 style={{ fontSize: '1.2rem', fontWeight: '600', color: '#2d3748' }}>
-            📍 Davao City Map
+            🗺️ Interactive Map
           </h2>
           {user ? (
             user.isAdmin ? (
@@ -234,6 +313,8 @@ export default function Home() {
           places={places}
           onMapClick={handleMapClick}
           selectedPosition={selectedPosition}
+          userLocation={userLocation}
+          onLocationFound={handleLocationFound}
           height="600px"
         />
       </div>
@@ -265,7 +346,7 @@ export default function Home() {
               <div>
                 <p style={{ fontWeight: '600', color: '#92400e' }}>Selected Location:</p>
                 <p style={{ fontSize: '0.9rem', color: '#b45309' }}>
-                  Lat: {selectedPosition.lat.toFixed(6)}, Lng: {selectedPosition.lng.toFixed(6)}
+                  {selectedPosition.city || 'Unknown'}, {selectedPosition.country || 'Unknown'}
                 </p>
               </div>
             </div>
@@ -278,7 +359,7 @@ export default function Home() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="form-input"
-                  placeholder="e.g., SM Lanang Restroom"
+                  placeholder="e.g., Central Park Restroom"
                 />
               </div>
               
@@ -300,7 +381,7 @@ export default function Home() {
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   className="form-input"
-                  placeholder="e.g., SM Lanang, Davao City"
+                  placeholder="Street address, city, etc."
                 />
               </div>
 
@@ -330,6 +411,11 @@ export default function Home() {
           <div className="flex justify-between items-start mb-6">
             <div>
               <h2 className="card-title text-2xl">{selectedPlace.name}</h2>
+              {selectedPlace.city && (
+                <p style={{ color: '#718096', fontSize: '0.9rem' }}>
+                  🏙️ {selectedPlace.city}, {selectedPlace.country || ''}
+                </p>
+              )}
               {selectedPlace.createdBy?.isAdmin && (
                 <span style={{
                   background: '#d1fae5',
@@ -544,7 +630,6 @@ export default function Home() {
                 <PhotoUpload 
                   placeId={selectedPlace.id} 
                   onUploadComplete={(photo) => {
-                    // Update the selected place with the new photo
                     setSelectedPlace({
                       ...selectedPlace,
                       photos: [...(selectedPlace.photos || []), photo]

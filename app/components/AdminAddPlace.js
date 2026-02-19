@@ -26,6 +26,8 @@ export default function AdminAddPlace({ selectedPosition, onPlaceAdded, onCancel
           ...formData,
           latitude: selectedPosition.lat,
           longitude: selectedPosition.lng,
+          city: selectedPosition.city,
+          country: selectedPosition.country
         }),
       })
 
@@ -62,7 +64,7 @@ export default function AdminAddPlace({ selectedPosition, onPlaceAdded, onCancel
         <div>
           <p style={{ fontWeight: '600', color: '#065f46' }}>Selected Location:</p>
           <p style={{ fontSize: '0.9rem', color: '#047857' }}>
-            Lat: {selectedPosition.lat.toFixed(6)}, Lng: {selectedPosition.lng.toFixed(6)}
+            {selectedPosition.city || 'Unknown'}, {selectedPosition.country || 'Unknown'}
           </p>
         </div>
       </div>
@@ -75,7 +77,7 @@ export default function AdminAddPlace({ selectedPosition, onPlaceAdded, onCancel
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             className="form-input"
-            placeholder="e.g., SM Lanang Restroom"
+            placeholder="e.g., Central Park Restroom"
           />
         </div>
         
@@ -97,7 +99,7 @@ export default function AdminAddPlace({ selectedPosition, onPlaceAdded, onCancel
             value={formData.address}
             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
             className="form-input"
-            placeholder="e.g., SM Lanang, Davao City"
+            placeholder="Street address, city, etc."
           />
         </div>
 
