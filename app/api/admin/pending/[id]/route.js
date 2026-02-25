@@ -1,71 +1,87 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/app/lib/prisma'
-import { adminMiddleware } from '@/app/lib/middleware'
 
 export const dynamic = 'force-dynamic'
 
-async function handler(req, { params }) {
+export async function POST(request, { params }) {
   try {
-    const { id } = params
-    const { action } = await req.json()
+    // Get the id from params
+    const id = params.id
+    const { action } = await request.json()
 
-    const pendingPlace = await prisma.pendingPlace.findUnique({
-      where: { id },
-      include: {
-        user: true
-      }
+    console.log('Processing suggestion:', { id, action })
+
+    if (!id || !action) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    // Find the suggestion
+    const suggestion = await prisma.suggestion.findUnique({
+      where: { id }
     })
 
-    if (!pendingPlace) {
+    if (!suggestion) {
       return NextResponse.json(
-        { error: 'Pending place not found' },
+        { error: 'Suggestion not found' },
         { status: 404 }
       )
     }
 
     if (action === 'approve') {
-      // Create actual place from pending suggestion
+      // Create place from suggestion
       const place = await prisma.place.create({
         data: {
-          name: pendingPlace.name,
-          description: pendingPlace.description,
-          latitude: pendingPlace.latitude,
-          longitude: pendingPlace.longitude,
-          address: pendingPlace.address,
-          // No createdById - it was a guest suggestion
-        },
+          name: suggestion.name,
+          description: suggestion.description || '',
+          latitude: suggestion.latitude,
+          longitude: suggestion.longitude,
+          address: suggestion.address || '',
+          city: suggestion.city || 'Davao City',
+          district: suggestion.district,
+          barangay: suggestion.barangay,
+          category: suggestion.category || 'Public',
+          status: 'active'
+        }
       })
 
-      // Update pending place status
-      await prisma.pendingPlace.update({
+      // Update suggestion status
+      await prisma.suggestion.update({
         where: { id },
-        data: { status: 'approved' },
+        data: { status: 'approved' }
       })
 
       return NextResponse.json({ 
-        message: 'Place approved successfully', 
+        success: true, 
+        message: 'Suggestion approved',
         place 
       })
-    } else if (action === 'reject') {
-      await prisma.pendingPlace.update({
+    } 
+    
+    if (action === 'reject') {
+      await prisma.suggestion.update({
         where: { id },
-        data: { status: 'rejected' },
+        data: { status: 'rejected' }
       })
 
-      return NextResponse.json({ message: 'Place rejected' })
-    } else {
-      return NextResponse.json(
-        { error: 'Invalid action' },
-        { status: 400 }
-      )
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Suggestion rejected' 
+      })
     }
-  } catch (error) {
-    console.error('Failed to process request:', error)
+
     return NextResponse.json(
-      { error: 'Failed to process request' },
+      { error: 'Invalid action' },
+      { status: 400 }
+    )
+
+  } catch (error) {
+    console.error('Error processing suggestion:', error)
+    return NextResponse.json(
+      { error: error.message },
       { status: 500 }
     )
   }
 }
-
-export const POST = adminMiddleware(handler)

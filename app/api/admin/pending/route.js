@@ -7,8 +7,10 @@ export const revalidate = 0
 
 async function getHandler(req) {
   try {
-    const pendingPlaces = await prisma.pendingPlace.findMany({
-      where: { status: 'pending' },
+    const pendingPlaces = await prisma.suggestion.findMany({
+      where: { 
+        status: 'pending' 
+      },
       include: {
         user: {
           select: {
@@ -18,13 +20,16 @@ async function getHandler(req) {
           },
         },
       },
+      orderBy: {
+        createdAt: 'desc'
+      }
     })
-    return NextResponse.json(pendingPlaces)
+    
+    // Always return an array
+    return NextResponse.json(pendingPlaces || [])
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to fetch pending places' },
-      { status: 500 }
-    )
+    console.error('Failed to fetch pending places:', error)
+    return NextResponse.json({ error: 'Failed to fetch pending places' }, { status: 500 })
   }
 }
 

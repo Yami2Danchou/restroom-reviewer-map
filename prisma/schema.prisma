@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // or "sqlite" for local
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -16,9 +16,9 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   reviews       Review[]
-  pendingPlaces PendingPlace[]
-  places        Place[]    // Places created by this user (if admin)
-  photos        Photo[]    // Photos uploaded by this user
+  suggestions   Suggestion[]
+  photos        Photo[]
+  createdPlaces Place[]   @relation("CreatedPlaces")
 }
 
 model Place {
@@ -28,19 +28,39 @@ model Place {
   latitude    Float
   longitude   Float
   address     String?
-  city        String?
-  country     String?
-  createdById String?    // If null, it was approved from pending
-  createdBy   User?      @relation(fields: [createdById], references: [id])
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  reviews     Review[]   // This should be here
-  photos      Photo[]    // This should be here
+  city        String
+  district    String?   // Specific area/district in Davao
+  barangay    String?   // Barangay level
+  category    String?   // Mall, Park, Public, etc.
+  amenities   Json?     // Store amenities as JSON (hasWheelchair, hasBidet, etc.)
+  status      String    @default("active") // active, inactive, closed
+  createdById String?
+  createdBy   User?     @relation("CreatedPlaces", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  reviews     Review[]
+  photos      Photo[]
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  rating       Int
+  comment      String?
+  smellLevel   Int
+  cleanliness  Int?      // 1-5 rating for cleanliness
+  accessibility Int?     // 1-5 rating for accessibility
+  placeId      String
+  place        Place    @relation(fields: [placeId], references: [id])
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Photo {
   id           String   @id @default(cuid())
   url          String
+  publicId     String?  // For cloud storage reference
   placeId      String
   place        Place    @relation(fields: [placeId], references: [id])
   uploadedById String
@@ -48,31 +68,23 @@ model Photo {
   createdAt    DateTime @default(now())
 }
 
-model Review {
-  id          String   @id @default(cuid())
-  rating      Int
-  comment     String?
-  smellLevel  Int
-  placeId     String
-  place       Place    @relation(fields: [placeId], references: [id])
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model PendingPlace {
+model Suggestion {
   id          String   @id @default(cuid())
   name        String
   description String?
   latitude    Float
   longitude   Float
   address     String?
-  city        String?
-  country     String?
-  status      String   @default("pending")
+  city        String   @default("Davao City")
+  district    String?
+  barangay    String?
+  category    String?
+  status      String   @default("pending") // pending, approved, rejected
   userId      String
   user        User     @relation(fields: [userId], references: [id])
+  adminNotes  String?  // Notes from admin about rejection/approval
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@unique([name, latitude, longitude]) // Prevent duplicate suggestions
 }
