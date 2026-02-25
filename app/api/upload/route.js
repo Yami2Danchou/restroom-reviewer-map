@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server'
-import { put } from '@vercel/blob'
+import { v2 as cloudinary } from 'cloudinary'
 import { authMiddleware } from '@/app/lib/middleware'
 import prisma from '@/app/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 export const runtime = 'nodejs'
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+})
 
 async function handler(req) {
   try {
@@ -53,18 +60,32 @@ async function handler(req) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    // Upload to Vercel Blob
-    const filename = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`
-    const blob = await put(filename, buffer, {
-      access: 'public',
-      contentType: file.type,
+    // Upload to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'restroom-reviewer', // Organize uploads in a folder
+          public_id: `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9]/g, '-')}`,
+          resource_type: 'auto',
+          transformation: [
+            { width: 1000, crop: 'limit' }, // Limit max width
+            { quality: 'auto' }, // Auto-optimize quality
+            { fetch_format: 'auto' } // Auto-convert to webp when possible
+          ]
+        },
+        (error, result) => {
+          if (error) reject(error)
+          else resolve(result)
+        }
+      )
+      uploadStream.end(buffer)
     })
 
-    // Save to database with the blob URL
+    // Save to database with Cloudinary URL
     const photo = await prisma.photo.create({
       data: {
-        url: blob.url, // Use the Vercel Blob URL
-        publicId: filename,
+        url: result.secure_url,
+        publicId: result.public_id,
         placeId: placeId,
         uploadedById: req.user.id
       }
@@ -74,13 +95,14 @@ async function handler(req) {
       success: true, 
       photo: {
         id: photo.id,
-        url: photo.url
+        url: photo.url,
+        publicId: result.public_id
       }
     })
   } catch (error) {
     console.error('Upload error:', error)
     return NextResponse.json(
-      { error: 'Upload failed. Please try again.' },
+      { error: 'Upload failed: ' + error.message },
       { status: 500 }
     )
   }

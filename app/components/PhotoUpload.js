@@ -5,10 +5,25 @@ import { useState } from 'react'
 export default function PhotoUpload({ placeId, onUploadComplete }) {
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState(null)
+  const [error, setError] = useState(null)
 
   const handleFileChange = (e) => {
     const file = e.target.files[0]
     if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('File too large. Maximum size is 5MB.')
+        return
+      }
+      
+      // Check file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg']
+      if (!validTypes.includes(file.type)) {
+        setError('Invalid file type. Only JPEG, PNG, and WebP are allowed.')
+        return
+      }
+
+      setError(null)
       const reader = new FileReader()
       reader.onloadend = () => {
         setPreview(reader.result)
@@ -22,6 +37,8 @@ export default function PhotoUpload({ placeId, onUploadComplete }) {
     if (!file) return
 
     setUploading(true)
+    setError(null)
+    
     const formData = new FormData()
     formData.append('file', file)
     formData.append('placeId', placeId)
@@ -32,18 +49,19 @@ export default function PhotoUpload({ placeId, onUploadComplete }) {
         body: formData,
       })
 
-      if (res.ok) {
-        const data = await res.json()
+      const data = await res.json()
+      
+      if (res.ok && data.success) {
         alert('✅ Photo uploaded successfully!')
         onUploadComplete(data.photo)
         setPreview(null)
         e.target.value = '' // Reset file input
       } else {
-        alert('Failed to upload photo')
+        setError(data.error || 'Failed to upload photo')
       }
     } catch (error) {
       console.error('Upload error:', error)
-      alert('Failed to upload photo')
+      setError('Failed to upload photo')
     } finally {
       setUploading(false)
     }
@@ -51,11 +69,27 @@ export default function PhotoUpload({ placeId, onUploadComplete }) {
 
   return (
     <div className="photo-upload">
+      {error && (
+        <div style={{
+          background: '#fee2e2',
+          color: '#991b1b',
+          padding: '0.5rem 1rem',
+          borderRadius: '0.5rem',
+          marginBottom: '1rem',
+          fontSize: '0.9rem'
+        }}>
+          ⚠️ {error}
+        </div>
+      )}
+
       <label className="upload-btn">
         <input
           type="file"
-          accept="image/*"
-          onChange={handleFileChange}
+          accept="image/jpeg,image/png,image/webp,image/jpg"
+          onChange={(e) => {
+            handleFileChange(e)
+            handleUpload(e)
+          }}
           disabled={uploading}
           style={{ display: 'none' }}
         />
@@ -63,13 +97,15 @@ export default function PhotoUpload({ placeId, onUploadComplete }) {
           display: 'flex',
           alignItems: 'center',
           gap: '0.5rem',
-          padding: '0.5rem 1rem',
-          background: '#edf2f7',
+          padding: '0.75rem 1.5rem',
+          background: uploading ? '#e2e8f0' : '#edf2f7',
           borderRadius: '2rem',
-          cursor: 'pointer',
-          border: '2px dashed #a0aec0'
+          cursor: uploading ? 'not-allowed' : 'pointer',
+          border: '2px dashed #a0aec0',
+          transition: 'all 0.2s',
+          opacity: uploading ? 0.7 : 1
         }}>
-          <span>📸</span>
+          <span style={{ fontSize: '1.2rem' }}>{uploading ? '⏳' : '📸'}</span>
           <span>{uploading ? 'Uploading...' : 'Add Photo'}</span>
         </div>
       </label>
@@ -86,31 +122,6 @@ export default function PhotoUpload({ placeId, onUploadComplete }) {
               border: '2px solid #667eea'
             }} 
           />
-          <button
-            onClick={() => {
-              // Trigger upload with the file
-              const input = document.querySelector('input[type="file"]')
-              if (input && input.files[0]) {
-                const formData = new FormData()
-                formData.append('file', input.files[0])
-                formData.append('placeId', placeId)
-                
-                fetch('/api/upload', {
-                  method: 'POST',
-                  body: formData,
-                }).then(res => {
-                  if (res.ok) {
-                    alert('✅ Photo uploaded!')
-                    setPreview(null)
-                  }
-                })
-              }
-            }}
-            className="btn btn-primary"
-            style={{ marginTop: '0.5rem', padding: '0.25rem 1rem' }}
-          >
-            Confirm Upload
-          </button>
         </div>
       )}
     </div>
