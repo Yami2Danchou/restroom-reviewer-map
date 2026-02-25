@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import L from 'leaflet'
+
+// Import Leaflet CSS in a way that works better with Next.js
 import 'leaflet/dist/leaflet.css'
 
 // Fix for default markers in Next.js
@@ -11,6 +13,7 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 })
+
 
 // Default center (New York City as fallback)
 const DEFAULT_CENTER = [40.7128, -74.0060]
