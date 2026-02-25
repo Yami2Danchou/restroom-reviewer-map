@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import L from 'leaflet'
-
-// Import Leaflet CSS in a way that works better with Next.js
 import 'leaflet/dist/leaflet.css'
+import { getCurrentLocation, getLocationDetails } from '../lib/location'
 
 // Fix for default markers in Next.js
 delete L.Icon.Default.prototype._getIconUrl
@@ -14,9 +13,8 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 })
 
-
-// Default center (New York City as fallback)
-const DEFAULT_CENTER = [40.7128, -74.0060]
+// Davao City center as default
+const DAVAO_CENTER = [7.1907, 125.4553]
 const DEFAULT_ZOOM = 13
 
 // Custom marker icons
@@ -24,7 +22,8 @@ const createCustomIcon = (type = 'default') => {
   const colors = {
     default: '#ef4444',
     selected: '#3b82f6',
-    user: '#10b981'
+    user: '#10b981',
+    search: '#f59e0b' // Orange for search results
   }
   
   return L.divIcon({
@@ -42,7 +41,7 @@ const createCustomIcon = (type = 'default') => {
       align-items: center;
       justify-content: center;
       font-size: ${type === 'user' ? '20px' : '16px'};
-    ">${type === 'user' ? '📍' : ''}</div>
+    ">${type === 'user' ? '📍' : type === 'search' ? '🔍' : ''}</div>
     <style>
       @keyframes pulse {
         0% { transform: scale(1); opacity: 1; }
@@ -63,53 +62,28 @@ export default function Map({
   userLocation,
   onLocationFound,
   onPlaceSelect,
+  onSearchResult,
   height = '600px' 
 }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
+  const searchMarkerRef = useRef(null)
   const [mapReady, setMapReady] = useState(false)
-  const [locationAttempted, setLocationAttempted] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
 
   // Ensure places is always an array
   const placesArray = Array.isArray(places) ? places : []
-
-  // Get user location on mount
-  useEffect(() => {
-    if (!locationAttempted && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const location = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            accuracy: position.coords.accuracy
-          }
-          console.log('User location:', location)
-          onLocationFound?.(location)
-          if (mapInstanceRef.current) {
-            mapInstanceRef.current.setView([location.lat, location.lng], 15)
-          }
-        },
-        (error) => {
-          console.log('Using default location:', error.message)
-          onLocationFound?.({
-            lat: DEFAULT_CENTER[0],
-            lng: DEFAULT_CENTER[1],
-            city: 'New York',
-            country: 'USA'
-          })
-        }
-      )
-      setLocationAttempted(true)
-    }
-  }, [locationAttempted, onLocationFound])
 
   // Initialize map
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return
 
-    // Initialize map with default view
-    mapInstanceRef.current = L.map(mapRef.current).setView(DEFAULT_CENTER, DEFAULT_ZOOM)
+    // Initialize map with Davao City center
+    mapInstanceRef.current = L.map(mapRef.current).setView(DAVAO_CENTER, DEFAULT_ZOOM)
 
     // Add tile layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -171,10 +145,8 @@ export default function Map({
 
     // Add markers for each place
     if (placesArray.length > 0) {
-      console.log('Adding markers for', placesArray.length, 'places')
       placesArray.forEach(place => {
         if (!place || typeof place.latitude !== 'number' || typeof place.longitude !== 'number') {
-          console.warn('Invalid place data:', place)
           return
         }
 
@@ -188,7 +160,6 @@ export default function Map({
         popupContent.style.minWidth = '250px'
         popupContent.style.fontFamily = 'system-ui, sans-serif'
         
-        // Add place name
         const nameEl = document.createElement('h3')
         nameEl.style.fontWeight = 'bold'
         nameEl.style.fontSize = '16px'
@@ -197,7 +168,6 @@ export default function Map({
         nameEl.textContent = place.name || 'Unnamed'
         popupContent.appendChild(nameEl)
         
-        // Add address if exists
         if (place.address) {
           const addressEl = document.createElement('p')
           addressEl.style.margin = '4px 0'
@@ -207,7 +177,6 @@ export default function Map({
           popupContent.appendChild(addressEl)
         }
         
-        // Add city if exists
         if (place.city) {
           const cityEl = document.createElement('p')
           cityEl.style.margin = '4px 0'
@@ -217,7 +186,6 @@ export default function Map({
           popupContent.appendChild(cityEl)
         }
         
-        // Add stats
         const statsDiv = document.createElement('div')
         statsDiv.style.display = 'flex'
         statsDiv.style.alignItems = 'center'
@@ -245,7 +213,6 @@ export default function Map({
         
         popupContent.appendChild(statsDiv)
         
-        // Add button
         const button = document.createElement('button')
         button.textContent = 'View Details'
         button.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
@@ -269,19 +236,15 @@ export default function Map({
           button.style.boxShadow = 'none'
         }
         
-        // Add click handler directly
         button.onclick = () => {
-          console.log('Button clicked for place:', place)
           if (onPlaceSelect) {
             onPlaceSelect(place)
           }
-          // Close the popup
           mapInstanceRef.current.closePopup()
         }
         
         popupContent.appendChild(button)
         
-        // Bind popup with the created content
         marker.bindPopup(popupContent)
         marker.addTo(mapInstanceRef.current)
 
@@ -289,9 +252,8 @@ export default function Map({
       })
     }
 
-    // Add marker for selected position - WITH NULL CHECK
+    // Add marker for selected position
     if (selectedPosition && selectedPosition.lat && selectedPosition.lng) {
-      console.log('Adding selected position marker:', selectedPosition)
       const marker = L.marker([selectedPosition.lat, selectedPosition.lng], {
         icon: createCustomIcon('selected')
       })
@@ -308,33 +270,234 @@ export default function Map({
 
       markersRef.current.push(marker)
       
-      // Pan to the selected position
       mapInstanceRef.current.setView([selectedPosition.lat, selectedPosition.lng], 16)
     }
 
-    // Add click event listeners to the buttons after popup is opened
-    mapInstanceRef.current.on('popupopen', function(e) {
-      setTimeout(() => {
-        placesArray.forEach(place => {
-          // This is handled by the direct button onclick above
-        })
-      }, 100)
-    })
-
   }, [placesArray, selectedPosition, userLocation, mapReady, onPlaceSelect])
 
+  // Search function using OpenStreetMap Nominatim
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return
+
+    setIsSearching(true)
+    setShowSearchResults(false)
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery + ', Davao City, Philippines')}&limit=5`,
+        {
+          headers: {
+            'User-Agent': 'RestroomReviewer/1.0'
+          }
+        }
+      )
+      
+      const data = await response.json()
+      setSearchResults(data)
+      setShowSearchResults(true)
+    } catch (error) {
+      console.error('Search failed:', error)
+      alert('Search failed. Please try again.')
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // Handle search result selection
+  const handleSelectSearchResult = (result) => {
+    const lat = parseFloat(result.lat)
+    const lon = parseFloat(result.lon)
+    
+    // Clear previous search marker
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.remove()
+    }
+    
+    // Add new search marker
+    searchMarkerRef.current = L.marker([lat, lon], {
+      icon: createCustomIcon('search')
+    })
+      .addTo(mapInstanceRef.current)
+      .bindPopup(`
+        <div style="padding: 12px; text-align: center;">
+          <strong style="color: #f59e0b; font-size: 16px;">🔍 Search Result</strong>
+          <p style="margin: 8px 0; font-size: 13px; color: #4a5568;">
+            ${result.display_name}
+          </p>
+        </div>
+      `)
+      .openPopup()
+    
+    // Pan to location
+    mapInstanceRef.current.setView([lat, lon], 16)
+    
+    // Call callback if provided
+    if (onSearchResult) {
+      onSearchResult({ lat, lng: lon, displayName: result.display_name })
+    }
+    
+    setShowSearchResults(false)
+    setSearchQuery('')
+  }
+
+  // Go to user location
+  const goToUserLocation = () => {
+    if (userLocation && userLocation.lat && userLocation.lng) {
+      mapInstanceRef.current.setView([userLocation.lat, userLocation.lng], 16)
+      
+      // Open user location popup
+      markersRef.current.forEach(marker => {
+        if (marker._icon && marker._icon.style.backgroundColor === '#10b981') {
+          marker.openPopup()
+        }
+      })
+    } else {
+      // If no user location, try to get it
+      getCurrentLocation()
+        .then(location => {
+          mapInstanceRef.current.setView([location.lat, location.lng], 16)
+          if (onLocationFound) {
+            onLocationFound(location)
+          }
+        })
+        .catch(error => {
+          alert('Could not get your location. Please enable location services.')
+        })
+    }
+  }
+
   return (
-    <div 
-      ref={mapRef} 
-      style={{ 
-        height, 
-        width: '100%',
-        borderRadius: '1rem',
-        overflow: 'hidden',
-        boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-        border: '3px solid white',
-        cursor: 'crosshair'
-      }} 
-    />
+    <div style={{ position: 'relative', height, width: '100%' }}>
+      {/* Search Bar */}
+      <div style={{
+        position: 'absolute',
+        top: '10px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 1000,
+        width: '90%',
+        maxWidth: '500px',
+        display: 'flex',
+        gap: '8px'
+      }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="Search for places in Davao City..."
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              borderRadius: '30px',
+              border: 'none',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+              fontSize: '14px',
+              outline: 'none'
+            }}
+          />
+          
+          {/* Search Results Dropdown */}
+          {showSearchResults && searchResults.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              background: 'white',
+              borderRadius: '10px',
+              marginTop: '5px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              maxHeight: '300px',
+              overflowY: 'auto',
+              zIndex: 1001
+            }}>
+              {searchResults.map((result, index) => (
+                <div
+                  key={index}
+                  onClick={() => handleSelectSearchResult(result)}
+                  style={{
+                    padding: '12px 16px',
+                    borderBottom: index < searchResults.length - 1 ? '1px solid #e5e7eb' : 'none',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                >
+                  {result.display_name}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        <button
+          onClick={handleSearch}
+          disabled={isSearching}
+          style={{
+            padding: '12px 20px',
+            borderRadius: '30px',
+            border: 'none',
+            background: '#3b82f6',
+            color: 'white',
+            fontWeight: '600',
+            cursor: 'pointer',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            opacity: isSearching ? 0.7 : 1
+          }}
+        >
+          {isSearching ? '...' : '🔍 Search'}
+        </button>
+      </div>
+
+      {/* My Location Button */}
+      <button
+        onClick={goToUserLocation}
+        style={{
+          position: 'absolute',
+          bottom: '30px',
+          right: '20px',
+          zIndex: 1000,
+          padding: '15px',
+          borderRadius: '50%',
+          border: 'none',
+          background: 'white',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+          cursor: 'pointer',
+          width: '50px',
+          height: '50px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '24px',
+          transition: 'transform 0.2s'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        title="Go to my location"
+      >
+        📍
+      </button>
+
+      {/* Map Container */}
+      <div 
+        ref={mapRef} 
+        style={{ 
+          height: '100%', 
+          width: '100%',
+          borderRadius: '1rem',
+          overflow: 'hidden',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+          border: '3px solid white',
+          cursor: 'crosshair'
+        }} 
+      />
+    </div>
   )
 }

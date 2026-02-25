@@ -108,6 +108,17 @@ export default function Home() {
     return 'Strong'
   }
 
+  const handleSearchResult = (location) => {
+  console.log('Search result:', location)
+  setSelectedPosition({
+    lat: location.lat,
+    lng: location.lng,
+    city: location.displayName?.split(',')[0] || 'Searched Location',
+    country: 'Philippines',
+    displayName: location.displayName
+  })
+}
+
   const getCategoryIcon = (category) => {
     const icons = {
       'Mall': '🏬',
@@ -651,14 +662,15 @@ export default function Home() {
           )}
         </div>
         <Map
-          places={places}
-          onMapClick={handleMapClick}
-          selectedPosition={selectedPosition}
-          userLocation={userLocation}
-          onLocationFound={handleLocationFound}
-          onPlaceSelect={handlePlaceSelect}
-          height="600px"
-        />
+  places={places}
+  onMapClick={handleMapClick}
+  selectedPosition={selectedPosition}
+  userLocation={userLocation}
+  onLocationFound={handleLocationFound}
+  onPlaceSelect={handlePlaceSelect}
+  onSearchResult={handleSearchResult}
+  height="600px"
+/>
       </div>
 
       {/* Add Form - Different for Admin vs Guest */}

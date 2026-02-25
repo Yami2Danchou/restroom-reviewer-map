@@ -18,7 +18,6 @@ async function handler(req) {
       category 
     } = await req.json()
 
-    // Validate required fields
     if (!name || !latitude || !longitude) {
       return NextResponse.json(
         { error: 'Missing required fields: name and location are required' },
@@ -26,30 +25,13 @@ async function handler(req) {
       )
     }
 
-    // Validate coordinates are within Davao City
-    const isInDavao = latitude >= 6.9833 && latitude <= 7.5833 && 
-                     longitude >= 125.2333 && longitude <= 125.6833
+    // Check if coordinates are within Davao City (rough bounds)
+    const isInDavao = latitude >= 6.9 && latitude <= 7.6 && 
+                     longitude >= 125.2 && longitude <= 125.7
     
     if (!isInDavao) {
       return NextResponse.json(
         { error: 'Sorry, this app currently only supports restrooms in Davao City.' },
-        { status: 400 }
-      )
-    }
-
-    // Check for duplicate pending suggestions
-    const existingPending = await prisma.suggestion.findFirst({
-      where: {
-        name: name,
-        latitude: { gte: latitude - 0.001, lte: latitude + 0.001 },
-        longitude: { gte: longitude - 0.001, lte: longitude + 0.001 },
-        status: 'pending'
-      }
-    })
-
-    if (existingPending) {
-      return NextResponse.json(
-        { error: 'A similar suggestion is already pending approval.' },
         { status: 400 }
       )
     }
@@ -67,16 +49,9 @@ async function handler(req) {
         barangay: barangay || null,
         category: category || null,
         status: 'pending',
-        userId: req.user.id
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        }
+        userId: req.user.id,
+        createdAt: new Date(),
+        updatedAt: new Date()
       }
     })
 
@@ -87,17 +62,8 @@ async function handler(req) {
     })
   } catch (error) {
     console.error('Failed to submit suggestion:', error)
-    
-    // Check for unique constraint violation
-    if (error.code === 'P2002') {
-      return NextResponse.json(
-        { error: 'A similar suggestion already exists.' },
-        { status: 400 }
-      )
-    }
-    
     return NextResponse.json(
-      { error: 'Failed to submit suggestion. Please try again.' },
+      { error: 'Failed to submit suggestion: ' + error.message },
       { status: 500 }
     )
   }
