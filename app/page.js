@@ -147,18 +147,19 @@ export default function Home() {
   }
 
   // ===== DATA FETCHING FUNCTIONS =====
-  const fetchPlaces = async () => {
-    try {
-      const res = await fetch('/api/places')
-      const data = await res.json()
-      console.log('Fetched places:', data)
-      setPlaces(Array.isArray(data) ? data : [])
-    } catch (error) {
-      console.error('Failed to fetch places:', error)
-      setPlaces([])
-    }
+  // Update your fetchPlaces function
+const fetchPlaces = async () => {
+  try {
+    const res = await fetch('/api/places')
+    const data = await res.json()
+    console.log('Fetched places:', data) // Check this in console
+    console.log('Number of places:', data.length) // Check the count
+    setPlaces(Array.isArray(data) ? data : [])
+  } catch (error) {
+    console.error('Failed to fetch places:', error)
+    setPlaces([])
   }
-
+}
   const findNearbyPlaces = () => {
     if (!userLocation || !places.length) return
 
@@ -1251,3 +1252,22 @@ export default function Home() {
     </div>
   )
 }
+
+// Add this button near your header
+<button
+  onClick={() => {
+    console.log('Manually refreshing places...')
+    fetchPlaces()
+  }}
+  style={{
+    background: '#3b82f6',
+    color: 'white',
+    padding: '0.5rem 1rem',
+    borderRadius: '0.5rem',
+    border: 'none',
+    cursor: 'pointer',
+    marginLeft: '1rem'
+  }}
+>
+  Refresh Places
+</button>
