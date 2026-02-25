@@ -5,8 +5,10 @@ import { v4 as uuidv4 } from 'uuid'
 import { authMiddleware } from '@/app/lib/middleware'
 import prisma from '@/app/lib/prisma'
 
+// Replace the deprecated config with these exports
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60 // Increase timeout for large files
+export const maxDuration = 60 // This replaces the previous config
+export const runtime = 'nodejs' // Explicitly set runtime (optional)
 
 async function handler(req) {
   try {
@@ -73,7 +75,7 @@ async function handler(req) {
     const photo = await prisma.photo.create({
       data: {
         url: imageUrl,
-        publicId: filename, // Use filename as publicId
+        publicId: filename,
         placeId: placeId,
         uploadedById: req.user.id
       }
@@ -96,10 +98,3 @@ async function handler(req) {
 }
 
 export const POST = authMiddleware(handler)
-
-// Handle large file uploads
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
