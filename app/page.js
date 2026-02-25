@@ -1252,22 +1252,3 @@ const fetchPlaces = async () => {
     </div>
   )
 }
-
-// Add this button near your header
-<button
-  onClick={() => {
-    console.log('Manually refreshing places...')
-    fetchPlaces()
-  }}
-  style={{
-    background: '#3b82f6',
-    color: 'white',
-    padding: '0.5rem 1rem',
-    borderRadius: '0.5rem',
-    border: 'none',
-    cursor: 'pointer',
-    marginLeft: '1rem'
-  }}
->
-  Refresh Places
-</button>
