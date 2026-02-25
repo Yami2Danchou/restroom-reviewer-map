@@ -2,6 +2,9 @@ import { AuthProvider } from './context/AuthContext'
 import Navbar from './components/Navbar'
 import './globals.css'
 
+// Import Leaflet CSS here instead of in the component
+import 'leaflet/dist/leaflet.css'
+
 export const metadata = {
   title: 'Restroom Reviewer - Davao City',
   description: 'Find and review restrooms in Davao City',

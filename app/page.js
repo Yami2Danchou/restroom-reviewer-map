@@ -7,40 +7,38 @@ import AdminAddPlace from './components/AdminAddPlace'
 import PhotoUpload from './components/PhotoUpload'
 import { getCurrentLocation, getLocationDetails } from './lib/location'
 
-const Map = dynamic(() => import('./components/Map'), { 
-  ssr: false,
-  loading: () => (
-    <div style={{ 
-      height: '600px', 
-      width: '100%', 
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      borderRadius: '1rem',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: 'white',
-      fontSize: '1.2rem',
-      flexDirection: 'column',
-      gap: '1rem'
-    }}>
-      <div className="spinner" style={{
-        width: '40px',
-        height: '40px',
-        border: '3px solid rgba(255,255,255,0.3)',
-        borderTop: '3px solid white',
-        borderRadius: '50%',
-        animation: 'spin 1s linear infinite'
-      }}></div>
-      <div>Loading map...</div>
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
-  )
-})
+// Import Map with dynamic import and no SSR
+const Map = dynamic(
+  () => import('./components/Map'),
+  { 
+    ssr: false,
+    loading: () => (
+      <div style={{ 
+        height: '600px', 
+        width: '100%', 
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        borderRadius: '1rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white',
+        fontSize: '1.2rem',
+        flexDirection: 'column',
+        gap: '1rem'
+      }}>
+        <div className="spinner" style={{
+          width: '40px',
+          height: '40px',
+          border: '3px solid rgba(255,255,255,0.3)',
+          borderTop: '3px solid white',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+        <div>Loading map...</div>
+      </div>
+    )
+  }
+)
 
 export default function Home() {
   const [places, setPlaces] = useState([])
