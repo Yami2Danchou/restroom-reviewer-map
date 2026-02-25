@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
+import { put } from '@vercel/blob'
 import { authMiddleware } from '@/app/lib/middleware'
 import prisma from '@/app/lib/prisma'
 
-// Replace the deprecated config with these exports
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60 // This replaces the previous config
-export const runtime = 'nodejs' // Explicitly set runtime (optional)
+export const maxDuration = 60
+export const runtime = 'nodejs'
 
 async function handler(req) {
   try {
@@ -56,25 +53,17 @@ async function handler(req) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    // Create unique filename
-    const fileExtension = file.name.split('.').pop()
-    const filename = `${uuidv4()}.${fileExtension}`
-    
-    // Create uploads directory if it doesn't exist
-    const uploadDir = path.join(process.cwd(), 'public/uploads')
-    await mkdir(uploadDir, { recursive: true })
+    // Upload to Vercel Blob
+    const filename = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`
+    const blob = await put(filename, buffer, {
+      access: 'public',
+      contentType: file.type,
+    })
 
-    // Save file
-    const filepath = path.join(uploadDir, filename)
-    await writeFile(filepath, buffer)
-
-    // Create URL for the image
-    const imageUrl = `/uploads/${filename}`
-
-    // Save to database
+    // Save to database with the blob URL
     const photo = await prisma.photo.create({
       data: {
-        url: imageUrl,
+        url: blob.url, // Use the Vercel Blob URL
         publicId: filename,
         placeId: placeId,
         uploadedById: req.user.id
