@@ -420,7 +420,7 @@ export default function Map({
           <div style="padding: 12px; text-align: center;">
             <strong style="color: #3b82f6; font-size: 16px;">📍 Selected Location</strong>
             <p style="margin: 8px 0; font-size: 13px; color: #4a5568;">
-              Click the form below to add/suggest a restroom
+              Enter the form to add/suggest a restroom or press BACK TO LIST to cancel.
             </p>
           </div>
         `)

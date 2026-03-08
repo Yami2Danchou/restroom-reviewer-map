@@ -220,45 +220,47 @@ export default function Home() {
     setSelectedPlace(null)
   }, [user])
 
- const handlePlaceSelect = (place) => {
-  console.log('Place selected from list:', place)
-  
-  // Set the selected place to show details
-  setSelectedPlace(place)
-  setActiveView('details')
-  setIsSidebarOpen(true)
-  setShowAddForm(false)
-  
-  // Set selected position to highlight on map and center view
-  setSelectedPosition({
-    lat: place.latitude,
-    lng: place.longitude,
-    city: place.city,
-    district: place.district,
-    barangay: place.barangay,
-    country: place.country
-  })
-}
+  // Handle place selection from list or map popup
+  const handlePlaceSelect = (place) => {
+    console.log('Place selected from list:', place)
+    
+    // Set the selected place to show details
+    setSelectedPlace(place)
+    setActiveView('details')
+    setIsSidebarOpen(true)
+    setShowAddForm(false)
+    
+    // Set selected position to highlight on map and center view
+    setSelectedPosition({
+      lat: place.latitude,
+      lng: place.longitude,
+      city: place.city,
+      district: place.district,
+      barangay: place.barangay,
+      country: place.country
+    })
+  }
 
+  // Handle nearby place click
   const handleNearbyPlaceClick = (place) => {
-  console.log('Nearby place clicked:', place)
-  
-  // Set the selected place to show details
-  setSelectedPlace(place)
-  setActiveView('details')
-  setIsSidebarOpen(true)
-  setShowAddForm(false)
-  
-  // Set selected position to highlight on map and center view
-  setSelectedPosition({
-    lat: place.latitude,
-    lng: place.longitude,
-    city: place.city,
-    district: place.district,
-    barangay: place.barangay,
-    country: place.country
-  })
-}
+    console.log('Nearby place clicked:', place)
+    
+    // Set the selected place to show details
+    setSelectedPlace(place)
+    setActiveView('details')
+    setIsSidebarOpen(true)
+    setShowAddForm(false)
+    
+    // Set selected position to highlight on map and center view
+    setSelectedPosition({
+      lat: place.latitude,
+      lng: place.longitude,
+      city: place.city,
+      district: place.district,
+      barangay: place.barangay,
+      country: place.country
+    })
+  }
 
   const handleGuestPlaceSubmit = async (e) => {
     e.preventDefault()
@@ -643,6 +645,60 @@ export default function Home() {
               </p>
             )}
           </div>
+
+          {/* Photos Section */}
+          {selectedPlace.photos && selectedPlace.photos.length > 0 && (
+            <div style={{ marginBottom: '2rem' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '0.5rem', color: '#2d3748' }}>
+                📸 Photos
+              </h3>
+              <div style={{
+                display: 'flex',
+                gap: '0.5rem',
+                overflowX: 'auto',
+                padding: '0.5rem 0'
+              }}>
+                {selectedPlace.photos.map(photo => (
+                  <div
+                    key={photo.id}
+                    onClick={() => window.open(photo.url, '_blank')}
+                    style={{
+                      flex: '0 0 auto',
+                      width: '100px',
+                      height: '100px',
+                      borderRadius: '0.5rem',
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                      border: '2px solid #e2e8f0',
+                      transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'scale(1.05)'
+                      e.currentTarget.style.borderColor = '#667eea'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                      e.currentTarget.style.borderColor = '#e2e8f0'
+                    }}
+                  >
+                    <img
+                      src={photo.url}
+                      alt="Restroom"
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover'
+                      }}
+                      onError={(e) => {
+                        console.error('Image failed to load:', photo.url)
+                        e.target.src = 'https://via.placeholder.com/100x100?text=No+Image'
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Stats Cards */}
           <div style={{ 
