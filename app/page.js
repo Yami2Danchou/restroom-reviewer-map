@@ -3,30 +3,36 @@
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useAuth } from './context/AuthContext'
+import AdminAddPlace from './components/AdminAddPlace'
+import PhotoUpload from './components/PhotoUpload'
+import MapLayout from './components/MapLayout'
+import IoTDashboard from './components/IoTDashboard'
 import { getCurrentLocation, getLocationDetails } from './lib/location'
 
-// Dynamically import map with no SSR
 const Map = dynamic(() => import('./components/Map'), { 
   ssr: false,
   loading: () => (
-    <div style={{
+    <div style={{ 
       height: '100%',
-      width: '100%',
+      width: '100%', 
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       color: 'white',
-      fontSize: '1.2rem'
+      fontSize: '1.2rem',
+      flexDirection: 'column',
+      gap: '1rem'
     }}>
-      <div style={{
-        width: '40px',
-        height: '40px',
-        border: '3px solid rgba(255,255,255,0.3)',
-        borderTop: '3px solid white',
+      <div className="spinner" style={{
+        width: '50px',
+        height: '50px',
+        border: '4px solid rgba(255,255,255,0.3)',
+        borderTop: '4px solid white',
         borderRadius: '50%',
         animation: 'spin 1s linear infinite'
       }}></div>
+      <div>Loading map...</div>
       <style jsx>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
@@ -43,57 +49,102 @@ export default function Home() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedPosition, setSelectedPosition] = useState(null)
   const [userLocation, setUserLocation] = useState(null)
-  const [showSidePanel, setShowSidePanel] = useState(false)
+  const [nearbyPlaces, setNearbyPlaces] = useState([])
+  const [loadingLocation, setLoadingLocation] = useState(true)
+  const [locationError, setLocationError] = useState(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [activeView, setActiveView] = useState('places') // 'places', 'add', 'details'
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     address: '',
-    category: ''
+    category: '',
+    district: '',
+    barangay: ''
+  })
+  const [reviewData, setReviewData] = useState({
+    rating: 5,
+    comment: '',
+    smellLevel: 5,
+    cleanliness: 5,
+    accessibility: 5
   })
   const { user } = useAuth()
 
+  // Fetch places on mount
   useEffect(() => {
     fetchPlaces()
   }, [])
 
+  // Get user location on mount
   useEffect(() => {
     let isMounted = true
 
     const getUserLocation = async () => {
       try {
+        setLoadingLocation(true)
+        setLocationError(null)
+        console.log('Attempting to get user location...')
+        
         const location = await getCurrentLocation()
+        console.log('Got raw location:', location)
+        
         const details = await getLocationDetails(location.lat, location.lng)
+        console.log('Location details:', details)
         
         if (isMounted) {
           setUserLocation({
             ...location,
             city: details.city || 'Davao City',
             country: details.country || 'Philippines',
-            displayName: details.displayName
+            district: details.district,
+            barangay: details.barangay,
+            displayName: details.displayName || 'Davao City, Philippines',
+            fullAddress: details.fullAddress
           })
         }
       } catch (error) {
-        console.log('Using default location')
+        console.warn('Location detection issue:', error.message)
+        
         if (isMounted) {
           setUserLocation({
             lat: 7.1907,
             lng: 125.4553,
             city: 'Davao City',
             country: 'Philippines',
-            displayName: 'Davao City, Philippines'
+            district: 'Poblacion',
+            displayName: 'Davao City, Philippines',
+            fullAddress: 'Davao City, Philippines',
+            isDefault: true
           })
+          setLocationError('Using Davao City as default. Enable location for better results.')
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingLocation(false)
         }
       }
     }
 
     getUserLocation()
-    return () => { isMounted = false }
+
+    return () => {
+      isMounted = false
+    }
   }, [])
+
+  // Find nearby places when location or places change
+  useEffect(() => {
+    if (userLocation && places.length > 0) {
+      findNearbyPlaces()
+    }
+  }, [userLocation, places])
 
   const fetchPlaces = async () => {
     try {
       const res = await fetch('/api/places')
       const data = await res.json()
+      console.log('Fetched places:', data.length)
       setPlaces(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Failed to fetch places:', error)
@@ -101,454 +152,880 @@ export default function Home() {
     }
   }
 
+  const findNearbyPlaces = () => {
+    if (!userLocation || !places.length) return
+
+    const nearby = places.filter(place => {
+      const distance = calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        place.latitude,
+        place.longitude
+      )
+      return distance <= 5
+    }).sort((a, b) => {
+      const distA = calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        a.latitude,
+        a.longitude
+      )
+      const distB = calculateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        b.latitude,
+        b.longitude
+      )
+      return distA - distB
+    })
+
+    setNearbyPlaces(nearby)
+  }
+
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371
+    const dLat = deg2rad(lat2 - lat1)
+    const dLon = deg2rad(lon2 - lon1)
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+    const d = R * c
+    return d
+  }
+
+  const deg2rad = (deg) => {
+    return deg * (Math.PI/180)
+  }
+
   const handleMapClick = useCallback(async (latlng) => {
     if (!user) {
-      alert('Please login to add restrooms')
+      alert('Please login to add or suggest restrooms')
       return
     }
     
     const details = await getLocationDetails(latlng.lat, latlng.lng)
+    
     setSelectedPosition({
       ...latlng,
-      city: details.city,
-      country: details.country
+      city: details.city || 'Davao City',
+      country: details.country || 'Philippines',
+      district: details.district,
+      barangay: details.barangay,
+      displayName: details.displayName
     })
-    setShowSidePanel(true)
+    setActiveView('add')
+    setIsSidebarOpen(true)
     setSelectedPlace(null)
   }, [user])
 
-  const handlePlaceSelect = (place) => {
-    setSelectedPlace(place)
-    setShowSidePanel(true)
-    setSelectedPosition(null)
-  }
-
-  const handlePlaceAdded = (newPlace) => {
-    fetchPlaces()
-    setShowSidePanel(false)
-    setSelectedPosition(null)
-    setSelectedPlace(newPlace)
-  }
-
-  const handleSearchResult = (location) => {
-    setSelectedPosition(location)
-  }
-
-  return (
-    <div style={{ height: '100%', width: '100%', position: 'relative' }}>
-      {/* Full-screen Map */}
-      <Map
-        places={places}
-        onMapClick={handleMapClick}
-        selectedPosition={selectedPosition}
-        userLocation={userLocation}
-        onPlaceSelect={handlePlaceSelect}
-        onSearchResult={handleSearchResult}
-        height="100vh"
-      />
-
-      {/* Floating Action Button */}
-      <button
-        onClick={() => setShowSidePanel(!showSidePanel)}
-        style={{
-          position: 'absolute',
-          bottom: '30px',
-          left: '320px',
-          zIndex: 1000,
-          width: '56px',
-          height: '56px',
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          border: 'none',
-          boxShadow: '0 4px 15px rgba(102,126,234,0.4)',
-          color: 'white',
-          fontSize: '24px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'all 0.3s ease',
-          '@media (max-width: 768px)': {
-            left: '20px',
-            bottom: '20px'
-          }
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.transform = 'scale(1.1)'
-          e.currentTarget.style.boxShadow = '0 6px 20px rgba(102,126,234,0.6)'
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.transform = 'scale(1)'
-          e.currentTarget.style.boxShadow = '0 4px 15px rgba(102,126,234,0.4)'
-        }}
-      >
-        {showSidePanel ? '✕' : '+'}
-      </button>
-
-      {/* Floating Side Panel */}
-      {(showSidePanel || selectedPlace || selectedPosition) && (
-        <div style={{
-          position: 'absolute',
-          top: '20px',
-          left: '320px',
-          right: '20px',
-          maxWidth: '400px',
-          background: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(10px)',
-          borderRadius: '12px',
-          boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-          zIndex: 1000,
-          padding: '24px',
-          maxHeight: 'calc(100vh - 40px)',
-          overflowY: 'auto',
-          transition: 'all 0.3s ease',
-          '@media (max-width: 768px)': {
-            left: '20px',
-            right: '20px',
-            maxWidth: 'none'
-          }
-        }}>
-          {/* Location Info */}
-          {userLocation && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              marginBottom: '20px',
-              padding: '12px',
-              background: '#e0f2fe',
-              borderRadius: '8px'
-            }}>
-              <span style={{ fontSize: '24px' }}>📍</span>
-              <div>
-                <div style={{ fontWeight: '600', color: '#0369a1' }}>
-                  {userLocation.city || 'Davao City'}
-                </div>
-                <div style={{ fontSize: '12px', color: '#0284c7' }}>
-                  {userLocation.accuracy ? `±${Math.round(userLocation.accuracy)}m accuracy` : ''}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Selected Place Details */}
-          {selectedPlace && (
-            <PlaceDetails 
-              place={selectedPlace} 
-              onClose={() => setSelectedPlace(null)}
-              userLocation={userLocation}
-            />
-          )}
-
-          {/* Add Place Form */}
-          {selectedPosition && !selectedPlace && user && (
-            <AddPlaceForm
-              position={selectedPosition}
-              user={user}
-              onPlaceAdded={handlePlaceAdded}
-              onCancel={() => {
-                setShowSidePanel(false)
-                setSelectedPosition(null)
-              }}
-            />
-          )}
-
-          {/* Login Prompt */}
-          {selectedPosition && !user && (
-            <div style={{ textAlign: 'center', padding: '20px' }}>
-              <p style={{ color: '#666', marginBottom: '20px' }}>
-                Please login to add a restroom
-              </p>
-              <button
-                onClick={() => window.location.href = '/login'}
-                style={{
-                  background: '#3b82f6',
-                  color: 'white',
-                  padding: '10px 24px',
-                  borderRadius: '20px',
-                  border: 'none',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                Login
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Place Details Component
-function PlaceDetails({ place, onClose, userLocation }) {
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371
-    const dLat = (lat2 - lat1) * Math.PI / 180
-    const dLon = (lon2 - lon1) * Math.PI / 180
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-    return (R * c).toFixed(1)
-  }
-
-  const distance = userLocation ? 
-    calculateDistance(userLocation.lat, userLocation.lng, place.latitude, place.longitude) : null
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>
-          {place.name}
-        </h2>
-        <button
-          onClick={onClose}
-          style={{
-            background: 'none',
-            border: 'none',
-            fontSize: '20px',
-            cursor: 'pointer',
-            padding: '4px 8px'
-          }}
-        >
-          ✕
-        </button>
-      </div>
-
-      {place.address && (
-        <p style={{ color: '#666', marginBottom: '8px' }}>
-          📍 {place.address}
-        </p>
-      )}
-
-      {distance && (
-        <p style={{ color: '#059669', fontSize: '14px', marginBottom: '12px' }}>
-          📏 {distance} km from your location
-        </p>
-      )}
-
-      {place.description && (
-        <p style={{ 
-          background: '#f8f9fa',
-          padding: '12px',
-          borderRadius: '8px',
-          marginBottom: '16px'
-        }}>
-          {place.description}
-        </p>
-      )}
-
-      {place.photos && place.photos.length > 0 && (
-        <div style={{ marginBottom: '16px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>Photos</h3>
-          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
-            {place.photos.map(photo => (
-              <img
-                key={photo.id}
-                src={photo.url}
-                alt="Restroom"
-                style={{
-                  width: '80px',
-                  height: '80px',
-                  borderRadius: '8px',
-                  objectFit: 'cover',
-                  cursor: 'pointer'
-                }}
-                onClick={() => window.open(photo.url, '_blank')}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-        <button
-          style={{
-            flex: 1,
-            padding: '10px',
-            background: '#3b82f6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontWeight: '600',
-            cursor: 'pointer'
-          }}
-        >
-          Add Review
-        </button>
-        <button
-          style={{
-            flex: 1,
-            padding: '10px',
-            background: '#10b981',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontWeight: '600',
-            cursor: 'pointer'
-          }}
-        >
-          Get Directions
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// Add Place Form Component
-function AddPlaceForm({ position, user, onPlaceAdded, onCancel }) {
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    address: '',
-    category: ''
+ const handlePlaceSelect = (place) => {
+  console.log('Place selected from list:', place)
+  
+  // Set the selected place to show details
+  setSelectedPlace(place)
+  setActiveView('details')
+  setIsSidebarOpen(true)
+  setShowAddForm(false)
+  
+  // Set selected position to highlight on map and center view
+  setSelectedPosition({
+    lat: place.latitude,
+    lng: place.longitude,
+    city: place.city,
+    district: place.district,
+    barangay: place.barangay,
+    country: place.country
   })
-  const [loading, setLoading] = useState(false)
+}
 
-  const handleSubmit = async (e) => {
+  const handleNearbyPlaceClick = (place) => {
+  console.log('Nearby place clicked:', place)
+  
+  // Set the selected place to show details
+  setSelectedPlace(place)
+  setActiveView('details')
+  setIsSidebarOpen(true)
+  setShowAddForm(false)
+  
+  // Set selected position to highlight on map and center view
+  setSelectedPosition({
+    lat: place.latitude,
+    lng: place.longitude,
+    city: place.city,
+    district: place.district,
+    barangay: place.barangay,
+    country: place.country
+  })
+}
+
+  const handleGuestPlaceSubmit = async (e) => {
     e.preventDefault()
-    setLoading(true)
+    if (!selectedPosition) {
+      alert('Please select a location on the map first')
+      return
+    }
 
     try {
-      const res = await fetch('/api/admin/places', {
+      const res = await fetch('/api/pending', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          latitude: position.lat,
-          longitude: position.lng,
-          city: 'Davao City'
+          name: formData.name,
+          description: formData.description,
+          latitude: selectedPosition.lat,
+          longitude: selectedPosition.lng,
+          address: formData.address,
+          city: 'Davao City',
+          district: selectedPosition.district || formData.district,
+          barangay: selectedPosition.barangay || formData.barangay,
+          category: formData.category
         }),
       })
 
       const data = await res.json()
       
-      if (res.ok && data.success) {
-        alert('✅ Place added successfully!')
-        onPlaceAdded(data.place)
+      if (res.ok) {
+        alert('✅ Your suggestion has been submitted for admin approval!')
+        setActiveView('places')
+        setSelectedPosition(null)
+        setFormData({ 
+          name: '', 
+          description: '', 
+          address: '',
+          category: '',
+          district: '',
+          barangay: ''
+        })
       } else {
-        alert(data.error || 'Failed to add place')
+        alert(data.error || 'Failed to submit suggestion')
       }
     } catch (error) {
-      alert('Failed to add place')
-    } finally {
-      setLoading(false)
+      console.error('Failed to submit:', error)
+      alert('Failed to submit suggestion')
     }
   }
 
-  return (
-    <div>
-      <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '16px' }}>
-        Add New Restroom
-      </h2>
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault()
+    if (!selectedPlace) return
 
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          placeholder="Restroom Name *"
-          required
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          style={{
-            width: '100%',
-            padding: '10px',
-            marginBottom: '12px',
-            border: '1px solid #ddd',
-            borderRadius: '8px',
-            fontSize: '14px'
-          }}
-        />
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          placeId: selectedPlace.id,
+          rating: reviewData.rating,
+          comment: reviewData.comment,
+          smellLevel: reviewData.smellLevel,
+          cleanliness: reviewData.cleanliness,
+          accessibility: reviewData.accessibility
+        }),
+      })
 
-        <select
-          value={formData.category}
-          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-          style={{
-            width: '100%',
-            padding: '10px',
-            marginBottom: '12px',
-            border: '1px solid #ddd',
-            borderRadius: '8px',
-            fontSize: '14px'
-          }}
-        >
-          <option value="">Select Category</option>
-          <option value="Mall">🏬 Mall</option>
-          <option value="Park">🌳 Park</option>
-          <option value="Market">🏪 Market</option>
-          <option value="Restaurant">🍽️ Restaurant</option>
-          <option value="Public">🚾 Public</option>
-        </select>
+      if (res.ok) {
+        alert('✅ Review submitted!')
+        setReviewData({ 
+          rating: 5, 
+          comment: '', 
+          smellLevel: 5,
+          cleanliness: 5,
+          accessibility: 5
+        })
+        fetchPlaces()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to submit review')
+      }
+    } catch (error) {
+      console.error('Failed to submit review:', error)
+      alert('Failed to submit review')
+    }
+  }
 
-        <textarea
-          placeholder="Description"
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          style={{
-            width: '100%',
-            padding: '10px',
-            marginBottom: '12px',
-            border: '1px solid #ddd',
-            borderRadius: '8px',
-            fontSize: '14px',
-            minHeight: '80px'
-          }}
-        />
+  const handlePlaceAdded = (newPlace) => {
+    fetchPlaces()
+    setActiveView('places')
+    setSelectedPosition(null)
+    setSelectedPlace(newPlace)
+  }
 
-        <input
-          type="text"
-          placeholder="Address"
-          value={formData.address}
-          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-          style={{
-            width: '100%',
-            padding: '10px',
-            marginBottom: '20px',
-            border: '1px solid #ddd',
-            borderRadius: '8px',
-            fontSize: '14px'
-          }}
-        />
+  const getCategoryIcon = (category) => {
+    const icons = {
+      'Mall': '🏬',
+      'Park': '🌳',
+      'Market': '🏪',
+      'Airport': '✈️',
+      'Terminal': '🚌',
+      'Restaurant': '🍽️',
+      'Hotel': '🏨',
+      'Hospital': '🏥',
+      'Public': '🚾'
+    }
+    return icons[category] || '🚽'
+  }
 
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              flex: 2,
-              padding: '12px',
-              background: '#10b981',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: '600',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1
+  const calculateAverageRating = (reviews) => {
+    if (!reviews || reviews.length === 0) return 0
+    const sum = reviews.reduce((acc, review) => acc + review.rating, 0)
+    return (sum / reviews.length).toFixed(1)
+  }
+
+  const getDistanceFromUser = (placeLat, placeLng) => {
+    if (!userLocation) return null
+    const distance = calculateDistance(
+      userLocation.lat,
+      userLocation.lng,
+      placeLat,
+      placeLng
+    )
+    return distance.toFixed(1)
+  }
+
+  // Render sidebar content based on active view
+  const renderSidebarContent = () => {
+    if (activeView === 'add' && user) {
+      if (user.isAdmin) {
+        return (
+          <AdminAddPlace
+            selectedPosition={selectedPosition}
+            onPlaceAdded={handlePlaceAdded}
+            onCancel={() => {
+              setActiveView('places')
+              setSelectedPosition(null)
             }}
-          >
-            {loading ? 'Adding...' : 'Add Place'}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            style={{
-              flex: 1,
-              padding: '12px',
-              background: '#e5e7eb',
-              color: '#374151',
-              border: 'none',
-              borderRadius: '8px',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}
-          >
-            Cancel
-          </button>
+          />
+        )
+      } else {
+        return (
+          <div>
+            <h3 style={{ 
+              fontSize: '1.5rem', 
+              fontWeight: 'bold', 
+              marginBottom: '1.5rem',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>
+              📝 Suggest Restroom
+            </h3>
+            <div style={{
+              background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+              padding: '1.2rem',
+              borderRadius: '1rem',
+              marginBottom: '1.5rem',
+              border: '1px solid #fbbf24'
+            }}>
+              <p style={{ fontWeight: '600', color: '#92400e', marginBottom: '0.3rem' }}>📍 Selected Location:</p>
+              <p style={{ fontSize: '0.95rem', color: '#b45309' }}>
+                {selectedPosition?.city || 'Davao City'}, {selectedPosition?.country || 'Philippines'}
+              </p>
+              {selectedPosition?.district && (
+                <p style={{ fontSize: '0.9rem', color: '#b45309' }}>District: {selectedPosition.district}</p>
+              )}
+            </div>
+            <form onSubmit={handleGuestPlaceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, color: '#4a5568', marginBottom: '0.3rem' }}>
+                  Restroom Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., SM Lanang Restroom"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.8rem',
+                    borderRadius: '0.5rem',
+                    border: '2px solid #e2e8f0',
+                    fontSize: '1rem',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = '#667eea'
+                    e.target.style.boxShadow = '0 0 0 3px rgba(102,126,234,0.2)'
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#e2e8f0'
+                    e.target.style.boxShadow = 'none'
+                  }}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, color: '#4a5568', marginBottom: '0.3rem' }}>
+                  Category
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.8rem',
+                    borderRadius: '0.5rem',
+                    border: '2px solid #e2e8f0',
+                    fontSize: '1rem'
+                  }}
+                >
+                  <option value="">Select category</option>
+                  <option value="Mall">🏬 Mall</option>
+                  <option value="Park">🌳 Park</option>
+                  <option value="Market">🏪 Market</option>
+                  <option value="Public">🚾 Public</option>
+                </select>
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, color: '#4a5568', marginBottom: '0.3rem' }}>
+                  Description
+                </label>
+                <textarea
+                  placeholder="Describe the restroom facilities..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.8rem',
+                    borderRadius: '0.5rem',
+                    border: '2px solid #e2e8f0',
+                    fontSize: '1rem',
+                    minHeight: '100px'
+                  }}
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, color: '#4a5568', marginBottom: '0.3rem' }}>
+                  Address
+                </label>
+                <input
+                  type="text"
+                  placeholder="Street address, building name..."
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.8rem',
+                    borderRadius: '0.5rem',
+                    border: '2px solid #e2e8f0',
+                    fontSize: '1rem'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, color: '#4a5568', marginBottom: '0.3rem' }}>
+                    District
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Buhangin"
+                    value={formData.district}
+                    onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.8rem',
+                      borderRadius: '0.5rem',
+                      border: '2px solid #e2e8f0',
+                      fontSize: '1rem'
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, color: '#4a5568', marginBottom: '0.3rem' }}>
+                    Barangay
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Barangay name"
+                    value={formData.barangay}
+                    onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.8rem',
+                      borderRadius: '0.5rem',
+                      border: '2px solid #e2e8f0',
+                      fontSize: '1rem'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button 
+                  type="submit" 
+                  style={{
+                    flex: 1,
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    padding: '0.8rem',
+                    borderRadius: '2rem',
+                    border: 'none',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    boxShadow: '0 4px 15px rgba(102,126,234,0.4)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(102,126,234,0.6)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(102,126,234,0.4)'
+                  }}
+                >
+                  Submit for Approval
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setActiveView('places')}
+                  style={{
+                    background: '#e5e7eb',
+                    color: '#374151',
+                    padding: '0.8rem 2rem',
+                    borderRadius: '2rem',
+                    border: 'none',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )
+      }
+    }
+
+    if (activeView === 'details' && selectedPlace) {
+      return (
+        <div>
+          {/* IoT Dashboard at the top */}
+          <IoTDashboard placeId={selectedPlace.id} placeName={selectedPlace.name} />
+
+          <div style={{ marginBottom: '2rem' }}>
+            <h2 style={{ 
+              fontSize: '1.5rem', 
+              fontWeight: 'bold', 
+              marginBottom: '0.5rem',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>
+              {getCategoryIcon(selectedPlace.category)} {selectedPlace.name}
+            </h2>
+            <p style={{ color: '#718096', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span>📍</span> {selectedPlace.address || 'No address'}
+            </p>
+            {userLocation && (
+              <p style={{ 
+                color: '#059669', 
+                fontSize: '0.9rem', 
+                marginTop: '0.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                background: '#d1fae5',
+                padding: '0.3rem 0.8rem',
+                borderRadius: '2rem',
+                width: 'fit-content'
+              }}>
+                <span>📏</span> {getDistanceFromUser(selectedPlace.latitude, selectedPlace.longitude)} km away
+              </p>
+            )}
+          </div>
+
+          {/* Stats Cards */}
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr', 
+            gap: '1rem',
+            marginBottom: '2rem'
+          }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+              padding: '1rem',
+              borderRadius: '1rem',
+              textAlign: 'center',
+              border: '1px solid #fbbf24'
+            }}>
+              <div style={{ fontSize: '2rem', color: '#fbbf24' }}>⭐</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#92400e' }}>
+                {calculateAverageRating(selectedPlace.reviews)}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#b45309' }}>Average Rating</div>
+            </div>
+            <div style={{
+              background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+              padding: '1rem',
+              borderRadius: '1rem',
+              textAlign: 'center',
+              border: '1px solid #6ee7b7'
+            }}>
+              <div style={{ fontSize: '2rem', color: '#10b981' }}>📝</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#065f46' }}>
+                {selectedPlace.reviews?.length || 0}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#047857' }}>Total Reviews</div>
+            </div>
+          </div>
+
+          {selectedPlace.description && (
+            <div style={{ 
+              marginBottom: '2rem',
+              background: '#f7fafc',
+              padding: '1rem',
+              borderRadius: '1rem',
+              border: '1px solid #e2e8f0'
+            }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '0.5rem', color: '#2d3748' }}>
+                📝 Description
+              </h3>
+              <p style={{ color: '#4a5568', lineHeight: '1.6' }}>{selectedPlace.description}</p>
+            </div>
+          )}
+
+          {/* Reviews Section */}
+          {selectedPlace.reviews && selectedPlace.reviews.length > 0 && (
+            <div style={{ marginBottom: '2rem' }}>
+              <h3 style={{ 
+                fontSize: '1.1rem', 
+                fontWeight: '600', 
+                marginBottom: '1rem',
+                color: '#2d3748'
+              }}>
+                💬 Reviews ({selectedPlace.reviews.length})
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                {selectedPlace.reviews.map((review) => (
+                  <div key={review.id} style={{
+                    background: '#f9fafb',
+                    padding: '1rem',
+                    borderRadius: '0.8rem',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <div style={{ color: '#fbbf24' }}>
+                        {'⭐'.repeat(review.rating)}{'☆'.repeat(5-review.rating)}
+                      </div>
+                      <span style={{ 
+                        background: review.smellLevel <= 3 ? '#dcfce7' : review.smellLevel <= 7 ? '#fef3c7' : '#fee2e2',
+                        color: review.smellLevel <= 3 ? '#166534' : review.smellLevel <= 7 ? '#92400e' : '#991b1b',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '1rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 600
+                      }}>
+                        Smell: {review.smellLevel}/10
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.95rem', marginBottom: '0.5rem', color: '#2d3748' }}>{review.comment}</p>
+                    <div style={{ fontSize: '0.8rem', color: '#a0aec0' }}>
+                      By: {review.user?.name || 'Anonymous'} • {new Date(review.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Add Review Section */}
+          {user && (
+            <div>
+              <h3 style={{ 
+                fontSize: '1.1rem', 
+                fontWeight: '600', 
+                marginBottom: '1rem',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
+              }}>
+                📝 Add Your Review
+              </h3>
+              <form onSubmit={handleReviewSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <select
+                  value={reviewData.rating}
+                  onChange={(e) => setReviewData({ ...reviewData, rating: parseInt(e.target.value) })}
+                  style={{
+                    width: '100%',
+                    padding: '0.8rem',
+                    borderRadius: '0.5rem',
+                    border: '2px solid #e2e8f0',
+                    fontSize: '1rem'
+                  }}
+                >
+                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n} ⭐</option>)}
+                </select>
+                
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, color: '#4a5568', marginBottom: '0.3rem' }}>
+                    Smell Level: {reviewData.smellLevel}/10
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={reviewData.smellLevel}
+                    onChange={(e) => setReviewData({ ...reviewData, smellLevel: parseInt(e.target.value) })}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                <textarea
+                  placeholder="Share your experience..."
+                  value={reviewData.comment}
+                  onChange={(e) => setReviewData({ ...reviewData, comment: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.8rem',
+                    borderRadius: '0.5rem',
+                    border: '2px solid #e2e8f0',
+                    fontSize: '1rem',
+                    minHeight: '80px'
+                  }}
+                />
+
+                <button 
+                  type="submit" 
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: 'white',
+                    padding: '0.8rem',
+                    borderRadius: '2rem',
+                    border: 'none',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    boxShadow: '0 4px 15px rgba(16,185,129,0.3)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(16,185,129,0.5)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(16,185,129,0.3)'
+                  }}
+                >
+                  Submit Review
+                </button>
+              </form>
+
+              {/* Photo Upload Section */}
+              <div style={{ marginTop: '2rem' }}>
+                <h3 style={{ 
+                  fontSize: '1.1rem', 
+                  fontWeight: '600', 
+                  marginBottom: '1rem',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent'
+                }}>
+                  📸 Add Photos
+                </h3>
+                <PhotoUpload 
+                  placeId={selectedPlace.id} 
+                  onUploadComplete={(photo) => {
+                    setSelectedPlace({
+                      ...selectedPlace,
+                      photos: [...(selectedPlace.photos || []), photo]
+                    })
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
-      </form>
-    </div>
+      )
+    }
+
+    // Default places list view
+    return (
+      <div>
+        {/* Location Status */}
+        {locationError && (
+          <div style={{
+            background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+            border: '1px solid #fbbf24',
+            padding: '1rem',
+            borderRadius: '1rem',
+            marginBottom: '1.5rem',
+            color: '#92400e',
+            fontSize: '0.9rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+            {locationError}
+          </div>
+        )}
+
+        {/* Welcome Header */}
+        <div style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: '1.5rem',
+          borderRadius: '1rem',
+          marginBottom: '2rem',
+          color: 'white',
+          textAlign: 'center'
+        }}>
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+            🚽 Davao City Restrooms
+          </h2>
+          <p style={{ opacity: 0.9 }}>
+            {places.length} restrooms available • {nearbyPlaces.length} near you
+          </p>
+        </div>
+
+        {/* Nearby Places */}
+        {nearbyPlaces.length > 0 && (
+          <div style={{ marginBottom: '2rem' }}>
+            <h3 style={{ 
+              fontSize: '1.2rem', 
+              fontWeight: 'bold', 
+              marginBottom: '1rem',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>
+              🏪 Nearby ({nearbyPlaces.length})
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+              {nearbyPlaces.slice(0, 5).map((place) => (
+                <button
+                  key={place.id}
+                  onClick={() => handleNearbyPlaceClick(place)}
+                  style={{
+                    background: 'white',
+                    padding: '1rem',
+                    borderRadius: '0.8rem',
+                    border: '1px solid #e5e7eb',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(102,126,234,0.2)'
+                    e.currentTarget.style.borderColor = '#667eea'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'
+                    e.currentTarget.style.borderColor = '#e5e7eb'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600 }}>
+                      {getCategoryIcon(place.category)} {place.name}
+                    </span>
+                    <span style={{
+                      background: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+                      padding: '0.2rem 0.8rem',
+                      borderRadius: '1rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      color: '#065f46'
+                    }}>
+                      {getDistanceFromUser(place.latitude, place.longitude)}km
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#718096', marginTop: '0.25rem' }}>
+                    ⭐ {calculateAverageRating(place.reviews)} • 📝 {place.reviews?.length || 0}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* All Places */}
+        <h3 style={{ 
+          fontSize: '1.2rem', 
+          fontWeight: 'bold', 
+          marginBottom: '1rem',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent'
+        }}>
+          🗺️ All Restrooms ({places.length})
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+          {places.map((place) => (
+            <button
+              key={place.id}
+              onClick={() => handlePlaceSelect(place)}
+              style={{
+                background: 'white',
+                padding: '1rem',
+                borderRadius: '0.8rem',
+                border: '1px solid #e5e7eb',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.2s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(102,126,234,0.2)'
+                e.currentTarget.style.borderColor = '#667eea'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'
+                e.currentTarget.style.borderColor = '#e5e7eb'
+              }}
+            >
+              <div style={{ fontWeight: 600 }}>
+                {getCategoryIcon(place.category)} {place.name}
+              </div>
+              <div style={{ fontSize: '0.85rem', color: '#718096', marginTop: '0.25rem' }}>
+                📍 {place.address?.substring(0, 50) || 'No address'} • ⭐ {calculateAverageRating(place.reviews)}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <MapLayout
+        sidebarContent={renderSidebarContent()}
+        isSidebarOpen={isSidebarOpen}
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        onClose={() => {
+          setActiveView('places')
+          setSelectedPlace(null)
+          setSelectedPosition(null)
+        }}
+        showCloseButton={activeView === 'details' || activeView === 'add'}
+        title={activeView === 'add' ? 'Add Restroom' : activeView === 'details' ? 'Restroom Details' : 'Restroom Finder'}
+      >
+        <Map
+          places={places}
+          onMapClick={handleMapClick}
+          selectedPosition={selectedPosition}
+          userLocation={userLocation}
+          onLocationFound={setUserLocation}
+          onPlaceSelect={handlePlaceSelect}
+          height="100%"
+        />
+      </MapLayout>
+    </>
   )
 }

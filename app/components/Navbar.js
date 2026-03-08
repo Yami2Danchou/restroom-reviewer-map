@@ -6,266 +6,85 @@ import { useState, useEffect } from 'react'
 
 export default function Navbar() {
   const { user, logout } = useAuth()
-  const [collapsed, setCollapsed] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
 
-  const handleLogout = async () => {
-    await logout()
-    setMobileOpen(false)
-  }
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20)
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   return (
-    <>
-      {/* Mobile Menu Button */}
-      <button
-        onClick={() => setMobileOpen(!mobileOpen)}
-        style={{
-          position: 'fixed',
-          top: '20px',
-          left: '20px',
-          zIndex: 1100,
-          background: 'white',
-          border: 'none',
-          borderRadius: '50%',
-          width: '48px',
-          height: '48px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '24px',
-          cursor: 'pointer',
-          display: window.innerWidth <= 768 ? 'flex' : 'none'
-        }}
-      >
-        ☰
-      </button>
-
-      {/* Sidebar */}
+    <nav style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: '80px',
+      background: scrolled ? 'rgba(255,255,255,0.95)' : 'white',
+      backdropFilter: 'blur(10px)',
+      boxShadow: scrolled ? '0 4px 20px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.1)',
+      zIndex: 1000,
+      transition: 'all 0.3s ease'
+    }}>
       <div style={{
-        width: collapsed ? '80px' : '280px',
-        height: '100vh',
-        background: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(10px)',
-        borderRight: '1px solid rgba(0,0,0,0.1)',
-        boxShadow: '2px 0 10px rgba(0,0,0,0.1)',
-        transition: 'width 0.3s ease',
+        maxWidth: '1400px',
+        height: '100%',
+        margin: '0 auto',
+        padding: '0 2rem',
         display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-        zIndex: 1000,
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        '@media (max-width: 768px)': {
-          position: 'fixed',
-          left: mobileOpen ? 0 : '-100%',
-          transition: 'left 0.3s ease',
-          width: '280px'
-        }
+        justifyContent: 'space-between',
+        alignItems: 'center'
       }}>
-        {/* Collapse Button (Desktop) */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          style={{
-            position: 'absolute',
-            right: '-12px',
-            top: '20px',
-            width: '24px',
-            height: '24px',
-            background: 'white',
-            border: '1px solid #ddd',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-            zIndex: 1001,
-            '@media (max-width: 768px)': {
-              display: 'none'
-            }
-          }}
-        >
-          {collapsed ? '→' : '←'}
-        </button>
+        <Link href="/" style={{ textDecoration: 'none' }}>
+          <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
+            🚽 Restroom<span style={{ color: '#667eea' }}>Reviewer</span>
+          </span>
+        </Link>
 
-        {/* Logo */}
-        <div style={{
-          padding: '24px 20px',
-          borderBottom: '1px solid #eee',
-          textAlign: collapsed ? 'center' : 'left'
-        }}>
-          <Link href="/" style={{ textDecoration: 'none' }}>
-            <span style={{ fontSize: collapsed ? '24px' : '28px' }}>
-              🚽
-            </span>
-            {!collapsed && (
-              <span style={{
-                marginLeft: '10px',
-                fontWeight: 'bold',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                fontSize: '18px'
-              }}>
-                Restroom Reviewer
-              </span>
-            )}
-          </Link>
-        </div>
-
-        {/* User Info */}
-        {user && (
-          <div style={{
-            padding: '20px',
-            borderBottom: '1px solid #eee',
-            background: '#f8f9fa'
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px'
-            }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '18px',
-                fontWeight: 'bold'
-              }}>
-                {user.name ? user.name[0].toUpperCase() : 'U'}
-              </div>
-              {!collapsed && (
-                <div>
-                  <div style={{ fontWeight: '600', color: '#2d3748' }}>
-                    {user.name || 'User'}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#718096' }}>
-                    {user.email}
-                  </div>
-                  {user.isAdmin && (
-                    <span style={{
-                      background: '#d1fae5',
-                      color: '#065f46',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '10px',
-                      fontWeight: '600',
-                      marginTop: '4px',
-                      display: 'inline-block'
-                    }}>
-                      Admin
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Navigation Links */}
-        <div style={{ flex: 1, padding: '20px 0' }}>
-          <NavLink href="/" icon="🗺️" label="Map" collapsed={collapsed} />
-          <NavLink href="/nearby" icon="📍" label="Nearby" collapsed={collapsed} />
-          
-          {user?.isAdmin && (
-            <NavLink href="/admin" icon="👑" label="Admin Dashboard" collapsed={collapsed} />
-          )}
-        </div>
-
-        {/* Auth Buttons */}
-        <div style={{
-          padding: '20px',
-          borderTop: '1px solid #eee'
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           {user ? (
-            <button
-              onClick={handleLogout}
-              style={{
-                width: '100%',
-                padding: collapsed ? '12px' : '12px 20px',
-                background: '#fee2e2',
-                border: 'none',
-                borderRadius: '8px',
-                color: '#dc2626',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: collapsed ? 'center' : 'flex-start',
-                gap: '10px',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = '#fecaca'}
-              onMouseLeave={e => e.currentTarget.style.background = '#fee2e2'}
-            >
-              <span>🚪</span>
-              {!collapsed && 'Logout'}
-            </button>
+            <>
+              <span>{user.name || user.email}</span>
+              {user.isAdmin && (
+                <Link href="/admin" style={{ textDecoration: 'none', color: '#4a5568' }}>
+                  Dashboard
+                </Link>
+              )}
+              <button
+                onClick={logout}
+                style={{
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.5rem 1.5rem',
+                  borderRadius: '2rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Logout
+              </button>
+            </>
           ) : (
             <>
-              <NavLink href="/login" icon="🔐" label="Login" collapsed={collapsed} />
-              <NavLink href="/register" icon="✨" label="Sign Up" collapsed={collapsed} highlight />
+              <Link href="/login" style={{ textDecoration: 'none', color: '#4a5568' }}>
+                Login
+              </Link>
+              <Link href="/register" style={{
+                background: '#667eea',
+                color: 'white',
+                textDecoration: 'none',
+                padding: '0.5rem 1.5rem',
+                borderRadius: '2rem'
+              }}>
+                Register
+              </Link>
             </>
           )}
         </div>
       </div>
-
-      {/* Mobile Overlay */}
-      {mobileOpen && (
-        <div
-          onClick={() => setMobileOpen(false)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 999
-          }}
-        />
-      )}
-    </>
-  )
-}
-
-// NavLink Component
-function NavLink({ href, icon, label, collapsed, highlight }) {
-  return (
-    <Link
-      href={href}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: collapsed ? '15px 0' : '12px 20px',
-        margin: '4px 10px',
-        borderRadius: '8px',
-        textDecoration: 'none',
-        color: highlight ? 'white' : '#4a5568',
-        background: highlight ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent',
-        transition: 'all 0.2s',
-        justifyContent: collapsed ? 'center' : 'flex-start'
-      }}
-      onMouseEnter={e => {
-        if (!highlight) {
-          e.currentTarget.style.background = '#edf2f7'
-        }
-      }}
-      onMouseLeave={e => {
-        if (!highlight) {
-          e.currentTarget.style.background = 'transparent'
-        }
-      }}
-    >
-      <span style={{ fontSize: '20px' }}>{icon}</span>
-      {!collapsed && <span style={{ fontWeight: '500' }}>{label}</span>}
-    </Link>
+    </nav>
   )
 }
