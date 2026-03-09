@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -10,8 +10,23 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const { login } = useAuth()
   const router = useRouter()
+
+  useEffect(() => {
+    // Check if we're on the client side
+    if (typeof window !== 'undefined') {
+      setIsMobile(window.innerWidth <= 768)
+      
+      const handleResize = () => {
+        setIsMobile(window.innerWidth <= 768)
+      }
+      
+      window.addEventListener('resize', handleResize)
+      return () => window.removeEventListener('resize', handleResize)
+    }
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -44,7 +59,7 @@ export default function LoginPage() {
     }}>
       <div style={{
         display: 'flex',
-        flexDirection: window.innerWidth > 768 ? 'row' : 'column',
+        flexDirection: isMobile ? 'column' : 'row',
         maxWidth: '1100px',
         width: '100%',
         background: 'white',
@@ -57,13 +72,14 @@ export default function LoginPage() {
         <div style={{
           flex: 1,
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          padding: window.innerWidth > 768 ? '3rem' : '2rem',
-          display: window.innerWidth > 768 ? 'flex' : 'none',
+          padding: isMobile ? '2rem' : '3rem',
+          display: isMobile ? 'none' : 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           position: 'relative',
           overflow: 'hidden'
         }}>
+          {/* ... rest of your left side content ... */}
           <div style={{
             position: 'absolute',
             width: '200%',
@@ -113,12 +129,12 @@ export default function LoginPage() {
         {/* Right Side - Login Form */}
         <div style={{
           flex: 1,
-          padding: window.innerWidth > 768 ? '3rem' : '2rem',
+          padding: isMobile ? '2rem' : '3rem',
           background: 'white'
         }}>
           <div style={{ maxWidth: '400px', margin: '0 auto' }}>
             {/* Mobile Header */}
-            {window.innerWidth <= 768 && (
+            {isMobile && (
               <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
                 <div style={{
                   fontSize: '4rem',
@@ -130,9 +146,10 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* ... rest of your form content ... */}
             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
               <h1 style={{
-                fontSize: window.innerWidth > 768 ? '2.5rem' : '2rem',
+                fontSize: isMobile ? '2rem' : '2.5rem',
                 fontWeight: 800,
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 WebkitBackgroundClip: 'text',
@@ -162,7 +179,7 @@ export default function LoginPage() {
                 gap: '0.5rem',
                 fontSize: '0.95rem'
               }}>
-                <span>⚠️</span>
+                <span> </span>
                 {error}
               </div>
             )}
@@ -180,7 +197,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: window.innerWidth > 768 ? '1rem' : '0.8rem',
+                    padding: isMobile ? '0.8rem' : '1rem',
                     border: '2px solid #e2e8f0',
                     borderRadius: '1rem',
                     fontSize: '1rem',
@@ -189,16 +206,6 @@ export default function LoginPage() {
                     WebkitAppearance: 'none'
                   }}
                   placeholder="you@example.com"
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#667eea'
-                    e.target.style.boxShadow = '0 0 0 3px rgba(102,126,234,0.2)'
-                    e.target.style.background = 'white'
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#e2e8f0'
-                    e.target.style.boxShadow = 'none'
-                    e.target.style.background = '#f7fafc'
-                  }}
                 />
               </div>
 
@@ -214,7 +221,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: window.innerWidth > 768 ? '1rem' : '0.8rem',
+                    padding: isMobile ? '0.8rem' : '1rem',
                     border: '2px solid #e2e8f0',
                     borderRadius: '1rem',
                     fontSize: '1rem',
@@ -223,16 +230,6 @@ export default function LoginPage() {
                     WebkitAppearance: 'none'
                   }}
                   placeholder="••••••••"
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#667eea'
-                    e.target.style.boxShadow = '0 0 0 3px rgba(102,126,234,0.2)'
-                    e.target.style.background = 'white'
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = '#e2e8f0'
-                    e.target.style.boxShadow = 'none'
-                    e.target.style.background = '#f7fafc'
-                  }}
                 />
               </div>
 
@@ -242,7 +239,7 @@ export default function LoginPage() {
                 style={{
                   background: loading ? '#93c5fd' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   color: 'white',
-                  padding: window.innerWidth > 768 ? '1rem' : '0.9rem',
+                  padding: isMobile ? '0.9rem' : '1rem',
                   border: 'none',
                   borderRadius: '1rem',
                   fontSize: '1rem',
