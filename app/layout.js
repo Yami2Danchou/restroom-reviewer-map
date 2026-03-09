@@ -4,7 +4,15 @@ import './globals.css'
 
 export const metadata = {
   title: 'Restroom Reviewer',
-  description: 'Find and review restrooms in the world',
+  description: 'Find and review restrooms around the world',
+}
+
+// Move viewport settings here
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
 }
 
 export default function RootLayout({ children }) {
@@ -13,10 +21,9 @@ export default function RootLayout({ children }) {
       <body style={{ margin: 0, padding: 0 }}>
         <AuthProvider>
           <Navbar />
-          {/* Spacer for fixed navbar - applies to all pages */}
-          <div style={{ height: '80px' }} /> 
+          <div style={{ height: '60px' }} /> 
           <main style={{ 
-            minHeight: 'calc(100vh - 80px)',
+            minHeight: 'calc(100vh - 60px)',
             position: 'relative'
           }}>
             {children}

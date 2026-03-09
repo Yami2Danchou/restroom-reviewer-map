@@ -938,7 +938,7 @@ export default function Home() {
           textAlign: 'center'
         }}>
           <h2 style={{ fontSize: '1.8rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-            🚽 Davao City Restrooms
+            Worldwide Restrooms
           </h2>
           <p style={{ opacity: 0.9 }}>
             {places.length} restrooms available • {nearbyPlaces.length} near you

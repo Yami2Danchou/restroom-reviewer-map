@@ -131,6 +131,17 @@ export default function Map({
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [smellValues, setSmellValues] = useState({})
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Check if mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   // Ensure places is always an array
   const placesArray = Array.isArray(places) ? places : []
@@ -246,22 +257,25 @@ export default function Map({
           icon: createCustomIcon('default', smellValue)
         })
 
-        // Create popup content with smell information
+        // Create popup content with photos
         const popupDiv = document.createElement('div')
         popupDiv.style.padding = '12px'
-        popupDiv.style.minWidth = '280px'
+        popupDiv.style.minWidth = isMobile ? '250px' : '280px'
+        popupDiv.style.maxWidth = '300px'
         popupDiv.style.fontFamily = 'system-ui, sans-serif'
         
         // Header with name and smell indicator
         const headerDiv = document.createElement('div')
         headerDiv.style.display = 'flex'
+        headerDiv.style.flexDirection = isMobile ? 'column' : 'row'
         headerDiv.style.justifyContent = 'space-between'
-        headerDiv.style.alignItems = 'center'
+        headerDiv.style.alignItems = isMobile ? 'flex-start' : 'center'
+        headerDiv.style.gap = '8px'
         headerDiv.style.marginBottom = '10px'
         
         const nameEl = document.createElement('h3')
         nameEl.style.fontWeight = 'bold'
-        nameEl.style.fontSize = '16px'
+        nameEl.style.fontSize = isMobile ? '14px' : '16px'
         nameEl.style.color = '#2d3748'
         nameEl.style.margin = '0'
         nameEl.textContent = place.name || 'Unnamed Restroom'
@@ -270,11 +284,12 @@ export default function Map({
         const smellBadge = document.createElement('div')
         smellBadge.style.padding = '4px 8px'
         smellBadge.style.borderRadius = '20px'
-        smellBadge.style.fontSize = '11px'
+        smellBadge.style.fontSize = isMobile ? '10px' : '11px'
         smellBadge.style.fontWeight = '600'
         smellBadge.style.background = iotSimulation.getSmellColor(smellValue)
         smellBadge.style.color = 'white'
         smellBadge.style.textShadow = '0 1px 2px rgba(0,0,0,0.2)'
+        smellBadge.style.alignSelf = isMobile ? 'flex-start' : 'auto'
         smellBadge.innerHTML = `${iotSimulation.getStatusIcon(smellValue)} ${smellValue}`
         headerDiv.appendChild(smellBadge)
         
@@ -302,7 +317,7 @@ export default function Map({
         qualityText.style.display = 'flex'
         qualityText.style.justifyContent = 'space-between'
         qualityText.style.marginBottom = '10px'
-        qualityText.style.fontSize = '11px'
+        qualityText.style.fontSize = isMobile ? '10px' : '11px'
         qualityText.style.color = '#718096'
         
         const qualityLabel = document.createElement('span')
@@ -318,11 +333,63 @@ export default function Map({
         
         popupDiv.appendChild(qualityText)
         
+        // Photos section
+        if (place.photos && place.photos.length > 0) {
+          const photosDiv = document.createElement('div')
+          photosDiv.style.marginBottom = '10px'
+          
+          const photosTitle = document.createElement('div')
+          photosTitle.style.fontSize = isMobile ? '11px' : '12px'
+          photosTitle.style.fontWeight = '600'
+          photosTitle.style.color = '#4a5568'
+          photosTitle.style.marginBottom = '5px'
+          photosTitle.textContent = '📸 Photos:'
+          photosDiv.appendChild(photosTitle)
+          
+          const photosGrid = document.createElement('div')
+          photosGrid.style.display = 'flex'
+          photosGrid.style.gap = '5px'
+          photosGrid.style.overflowX = 'auto'
+          photosGrid.style.padding = '5px 0'
+          
+          place.photos.slice(0, 3).forEach(photo => {
+            const imgContainer = document.createElement('div')
+            imgContainer.style.flex = '0 0 auto'
+            imgContainer.style.width = isMobile ? '50px' : '60px'
+            imgContainer.style.height = isMobile ? '50px' : '60px'
+            imgContainer.style.borderRadius = '8px'
+            imgContainer.style.overflow = 'hidden'
+            imgContainer.style.cursor = 'pointer'
+            imgContainer.style.border = '2px solid #e2e8f0'
+            
+            const img = document.createElement('img')
+            img.src = photo.url
+            img.alt = 'Restroom photo'
+            img.style.width = '100%'
+            img.style.height = '100%'
+            img.style.objectFit = 'cover'
+            img.onerror = () => {
+              img.src = 'https://via.placeholder.com/60x60?text=No+Image'
+            }
+            
+            img.onclick = (e) => {
+              e.stopPropagation()
+              window.open(photo.url, '_blank')
+            }
+            
+            imgContainer.appendChild(img)
+            photosGrid.appendChild(imgContainer)
+          })
+          
+          photosDiv.appendChild(photosGrid)
+          popupDiv.appendChild(photosDiv)
+        }
+        
         // Address
         if (place.address) {
           const addressEl = document.createElement('p')
           addressEl.style.margin = '4px 0'
-          addressEl.style.fontSize = '13px'
+          addressEl.style.fontSize = isMobile ? '12px' : '13px'
           addressEl.style.color = '#718096'
           addressEl.innerHTML = `📍 ${place.address}`
           popupDiv.appendChild(addressEl)
@@ -332,7 +399,7 @@ export default function Map({
         if (place.city) {
           const cityEl = document.createElement('p')
           cityEl.style.margin = '4px 0'
-          cityEl.style.fontSize = '12px'
+          cityEl.style.fontSize = isMobile ? '11px' : '12px'
           cityEl.style.color = '#718096'
           cityEl.innerHTML = `🏙️ ${place.city}${place.country ? `, ${place.country}` : ''}`
           popupDiv.appendChild(cityEl)
@@ -349,7 +416,7 @@ export default function Map({
         ratingSpan.style.background = '#fbbf24'
         ratingSpan.style.padding = '4px 8px'
         ratingSpan.style.borderRadius = '20px'
-        ratingSpan.style.fontSize = '12px'
+        ratingSpan.style.fontSize = isMobile ? '11px' : '12px'
         ratingSpan.style.fontWeight = 'bold'
         
         if (place.reviews && place.reviews.length > 0) {
@@ -364,7 +431,7 @@ export default function Map({
         reviewSpan.style.background = '#e2e8f0'
         reviewSpan.style.padding = '4px 8px'
         reviewSpan.style.borderRadius = '20px'
-        reviewSpan.style.fontSize = '12px'
+        reviewSpan.style.fontSize = isMobile ? '11px' : '12px'
         reviewSpan.textContent = `📝 ${place.reviews?.length || 0} reviews`
         statsDiv.appendChild(reviewSpan)
         
@@ -376,10 +443,10 @@ export default function Map({
         button.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
         button.style.color = 'white'
         button.style.border = 'none'
-        button.style.padding = '8px 16px'
+        button.style.padding = isMobile ? '6px 12px' : '8px 16px'
         button.style.borderRadius = '20px'
         button.style.cursor = 'pointer'
-        button.style.fontSize = '13px'
+        button.style.fontSize = isMobile ? '12px' : '13px'
         button.style.fontWeight = '600'
         button.style.width = '100%'
         button.style.marginTop = '8px'
@@ -420,7 +487,7 @@ export default function Map({
           <div style="padding: 12px; text-align: center;">
             <strong style="color: #3b82f6; font-size: 16px;">📍 Selected Location</strong>
             <p style="margin: 8px 0; font-size: 13px; color: #4a5568;">
-              Enter the form to add/suggest a restroom or press BACK TO LIST to cancel.
+              Click the form below to add/suggest a restroom
             </p>
           </div>
         `)
@@ -430,7 +497,7 @@ export default function Map({
       mapInstanceRef.current.setView([selectedPosition.lat, selectedPosition.lng], 16)
     }
 
-  }, [placesArray, selectedPosition, userLocation, mapReady, onPlaceSelect, smellValues])
+  }, [placesArray, selectedPosition, userLocation, mapReady, onPlaceSelect, smellValues, isMobile])
 
   // Search function using OpenStreetMap Nominatim
   const handleSearch = async () => {
@@ -497,6 +564,13 @@ export default function Map({
   const goToUserLocation = () => {
     if (userLocation && userLocation.lat && userLocation.lng) {
       mapInstanceRef.current.setView([userLocation.lat, userLocation.lng], 16)
+      
+      // Open user location popup
+      markersRef.current.forEach(marker => {
+        if (marker._icon && marker._icon.style.backgroundColor === '#10b981') {
+          marker.openPopup()
+        }
+      })
     } else {
       alert('Could not get your location. Please enable location services.')
     }
@@ -504,14 +578,14 @@ export default function Map({
 
   return (
     <div style={{ position: 'relative', height, width: '100%' }}>
-      {/* Search Bar */}
+      {/* Search Bar - Adjusted for mobile */}
       <div style={{
         position: 'absolute',
-        top: '10px',
+        top: isMobile ? '60px' : '10px',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 1000,
-        width: '90%',
+        width: isMobile ? 'calc(100% - 20px)' : '90%',
         maxWidth: '500px',
         display: 'flex',
         gap: '8px'
@@ -522,15 +596,16 @@ export default function Map({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="Search for places in Davao City..."
+            placeholder={isMobile ? "Search places..." : "Search for places around the world..."}
             style={{
               width: '100%',
-              padding: '12px 16px',
+              padding: isMobile ? '10px 12px' : '12px 16px',
               borderRadius: '30px',
               border: 'none',
               boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-              fontSize: '14px',
-              outline: 'none'
+              fontSize: isMobile ? '14px' : '14px',
+              outline: 'none',
+              WebkitAppearance: 'none'
             }}
           />
           
@@ -544,7 +619,7 @@ export default function Map({
               borderRadius: '10px',
               marginTop: '5px',
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              maxHeight: '300px',
+              maxHeight: isMobile ? '200px' : '300px',
               overflowY: 'auto',
               zIndex: 1001
             }}>
@@ -553,14 +628,16 @@ export default function Map({
                   key={index}
                   onClick={() => handleSelectSearchResult(result)}
                   style={{
-                    padding: '12px 16px',
+                    padding: isMobile ? '10px 12px' : '12px 16px',
                     borderBottom: index < searchResults.length - 1 ? '1px solid #e5e7eb' : 'none',
                     cursor: 'pointer',
-                    fontSize: '14px',
+                    fontSize: isMobile ? '13px' : '14px',
                     transition: 'background 0.2s'
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                  onTouchStart={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                  onTouchEnd={(e) => e.currentTarget.style.background = 'white'}
                 >
                   {result.display_name}
                 </div>
@@ -573,19 +650,21 @@ export default function Map({
           onClick={handleSearch}
           disabled={isSearching}
           style={{
-            padding: '12px 20px',
+            padding: isMobile ? '10px 15px' : '12px 20px',
             borderRadius: '30px',
             border: 'none',
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             color: 'white',
             fontWeight: '600',
-            cursor: 'pointer',
+            cursor: isSearching ? 'not-allowed' : 'pointer',
             boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             opacity: isSearching ? 0.7 : 1,
-            transition: 'transform 0.2s, box-shadow 0.2s'
+            transition: 'transform 0.2s, box-shadow 0.2s',
+            fontSize: isMobile ? '14px' : '14px',
+            WebkitTapHighlightColor: 'transparent'
           }}
           onMouseEnter={(e) => {
             if (!isSearching) {
@@ -600,7 +679,7 @@ export default function Map({
             }
           }}
         >
-          {isSearching ? '...' : '🔍 Search'}
+          {isSearching ? '...' : '🔍'}
         </button>
       </div>
 
@@ -609,22 +688,23 @@ export default function Map({
         onClick={goToUserLocation}
         style={{
           position: 'absolute',
-          bottom: '100px',
-          right: '20px',
+          bottom: isMobile ? '100px' : '100px',
+          right: isMobile ? '10px' : '20px',
           zIndex: 1000,
-          padding: '15px',
+          padding: isMobile ? '12px' : '15px',
           borderRadius: '50%',
           border: 'none',
           background: 'white',
           boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
           cursor: 'pointer',
-          width: '50px',
-          height: '50px',
+          width: isMobile ? '45px' : '50px',
+          height: isMobile ? '45px' : '50px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '24px',
-          transition: 'transform 0.2s, box-shadow 0.2s'
+          fontSize: isMobile ? '20px' : '24px',
+          transition: 'transform 0.2s, box-shadow 0.2s',
+          WebkitTapHighlightColor: 'transparent'
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.1)'
@@ -633,6 +713,12 @@ export default function Map({
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = 'scale(1)'
           e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)'
+        }}
+        onTouchStart={(e) => {
+          e.currentTarget.style.transform = 'scale(1.1)'
+        }}
+        onTouchEnd={(e) => {
+          e.currentTarget.style.transform = 'scale(1)'
         }}
         title="Go to my location"
       >
@@ -645,10 +731,8 @@ export default function Map({
         style={{ 
           height: '100%', 
           width: '100%',
-          borderRadius: '1rem',
+          borderRadius: 0,
           overflow: 'hidden',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-          border: '3px solid white',
           cursor: 'crosshair'
         }} 
       />

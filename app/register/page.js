@@ -57,15 +57,16 @@ export default function RegisterPage() {
 
   return (
     <div style={{
-      minHeight: 'calc(100vh - 80px)',
+      minHeight: 'calc(100vh - 60px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      padding: '2rem'
+      padding: '1rem'
     }}>
       <div style={{
         display: 'flex',
+        flexDirection: window.innerWidth > 768 ? 'row' : 'column',
         maxWidth: '1100px',
         width: '100%',
         background: 'white',
@@ -74,12 +75,12 @@ export default function RegisterPage() {
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
         animation: 'slideUp 0.5s ease'
       }}>
-        {/* Left Side - Branding */}
+        {/* Left Side - Branding (Hidden on mobile) */}
         <div style={{
           flex: 1,
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          padding: '3rem',
-          display: 'flex',
+          padding: window.innerWidth > 768 ? '3rem' : '2rem',
+          display: window.innerWidth > 768 ? 'flex' : 'none',
           alignItems: 'center',
           justifyContent: 'center',
           position: 'relative',
@@ -134,13 +135,26 @@ export default function RegisterPage() {
         {/* Right Side - Register Form */}
         <div style={{
           flex: 1,
-          padding: '3rem',
+          padding: window.innerWidth > 768 ? '3rem' : '2rem',
           background: 'white'
         }}>
           <div style={{ maxWidth: '400px', margin: '0 auto' }}>
+            {/* Mobile Header */}
+            {window.innerWidth <= 768 && (
+              <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                <div style={{
+                  fontSize: '4rem',
+                  marginBottom: '0.5rem'
+                }}>✨</div>
+                <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#667eea' }}>
+                  Join Our Community
+                </h2>
+              </div>
+            )}
+
             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
               <h1 style={{
-                fontSize: '2.5rem',
+                fontSize: window.innerWidth > 768 ? '2.5rem' : '2rem',
                 fontWeight: 800,
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 WebkitBackgroundClip: 'text',
@@ -149,7 +163,7 @@ export default function RegisterPage() {
               }}>
                 Create Account
               </h1>
-              <p style={{ color: '#718096' }}>
+              <p style={{ color: '#718096', fontSize: '0.95rem' }}>
                 Already have an account?{' '}
                 <Link href="/login" style={{ color: '#667eea', textDecoration: 'none', fontWeight: 600 }}>
                   Sign in
@@ -168,16 +182,16 @@ export default function RegisterPage() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                animation: 'shake 0.5s ease'
+                fontSize: '0.95rem'
               }}>
-                <span>⚠️</span>
+                <span> </span>
                 {error}
               </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#4a5568', marginBottom: '0.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#4a5568', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                   <span> </span>
                   Name (Optional)
                 </label>
@@ -188,12 +202,13 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   style={{
                     width: '100%',
-                    padding: '1rem',
+                    padding: window.innerWidth > 768 ? '1rem' : '0.8rem',
                     border: '2px solid #e2e8f0',
                     borderRadius: '1rem',
                     fontSize: '1rem',
                     transition: 'all 0.3s ease',
-                    background: '#f7fafc'
+                    background: '#f7fafc',
+                    WebkitAppearance: 'none'
                   }}
                   placeholder="John Doe"
                   onFocus={(e) => {
@@ -210,7 +225,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#4a5568', marginBottom: '0.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#4a5568', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                   <span> </span>
                   Email Address
                 </label>
@@ -222,12 +237,13 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   style={{
                     width: '100%',
-                    padding: '1rem',
+                    padding: window.innerWidth > 768 ? '1rem' : '0.8rem',
                     border: '2px solid #e2e8f0',
                     borderRadius: '1rem',
                     fontSize: '1rem',
                     transition: 'all 0.3s ease',
-                    background: '#f7fafc'
+                    background: '#f7fafc',
+                    WebkitAppearance: 'none'
                   }}
                   placeholder="you@example.com"
                   onFocus={(e) => {
@@ -244,7 +260,7 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#4a5568', marginBottom: '0.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#4a5568', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                   <span> </span>
                   Password
                 </label>
@@ -256,12 +272,13 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   style={{
                     width: '100%',
-                    padding: '1rem',
+                    padding: window.innerWidth > 768 ? '1rem' : '0.8rem',
                     border: '2px solid #e2e8f0',
                     borderRadius: '1rem',
                     fontSize: '1rem',
                     transition: 'all 0.3s ease',
-                    background: '#f7fafc'
+                    background: '#f7fafc',
+                    WebkitAppearance: 'none'
                   }}
                   placeholder="••••••••"
                   onFocus={(e) => {
@@ -281,8 +298,8 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#4a5568', marginBottom: '0.5rem' }}>
-                  <span>✓</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: '#4a5568', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
+                  <span> </span>
                   Confirm Password
                 </label>
                 <input
@@ -293,12 +310,13 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   style={{
                     width: '100%',
-                    padding: '1rem',
+                    padding: window.innerWidth > 768 ? '1rem' : '0.8rem',
                     border: '2px solid #e2e8f0',
                     borderRadius: '1rem',
                     fontSize: '1rem',
                     transition: 'all 0.3s ease',
-                    background: '#f7fafc'
+                    background: '#f7fafc',
+                    WebkitAppearance: 'none'
                   }}
                   placeholder="••••••••"
                   onFocus={(e) => {
@@ -314,13 +332,22 @@ export default function RegisterPage() {
                 />
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <input type="checkbox" id="terms" required style={{ width: '1.2rem', height: '1.2rem' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <input 
+                  type="checkbox" 
+                  id="terms" 
+                  required 
+                  style={{ 
+                    width: '1.2rem', 
+                    height: '1.2rem',
+                    cursor: 'pointer'
+                  }} 
+                />
                 <label htmlFor="terms" style={{ fontSize: '0.9rem', color: '#4a5568' }}>
                   I agree to the{' '}
-                  <Link href="/terms" style={{ color: '#667eea', textDecoration: 'none' }}>Terms of Service</Link>
+                  <Link href="/terms" style={{ color: '#667eea', textDecoration: 'none' }}>Terms</Link>
                   {' '}and{' '}
-                  <Link href="/privacy" style={{ color: '#667eea', textDecoration: 'none' }}>Privacy Policy</Link>
+                  <Link href="/privacy" style={{ color: '#667eea', textDecoration: 'none' }}>Privacy</Link>
                 </label>
               </div>
 
@@ -330,10 +357,10 @@ export default function RegisterPage() {
                 style={{
                   background: loading ? '#93c5fd' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   color: 'white',
-                  padding: '1rem',
+                  padding: window.innerWidth > 768 ? '1rem' : '0.9rem',
                   border: 'none',
                   borderRadius: '1rem',
-                  fontSize: '1.1rem',
+                  fontSize: '1rem',
                   fontWeight: 600,
                   cursor: loading ? 'not-allowed' : 'pointer',
                   transition: 'all 0.3s ease',
@@ -341,7 +368,9 @@ export default function RegisterPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '0.5rem'
+                  gap: '0.5rem',
+                  marginTop: '0.5rem',
+                  WebkitTapHighlightColor: 'transparent'
                 }}
               >
                 {loading ? (
@@ -383,11 +412,6 @@ export default function RegisterPage() {
         @keyframes float {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-20px); }
-        }
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-10px); }
-          75% { transform: translateX(10px); }
         }
         @keyframes spin {
           0% { transform: rotate(0deg); }

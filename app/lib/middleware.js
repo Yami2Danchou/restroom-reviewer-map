@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import cookie from 'cookie'
 
 export const authMiddleware = (handler) => {
-  return async (req) => {
+  return async (req, ...args) => {
     try {
       const cookies = cookie.parse(req.headers.get('cookie') || '')
       const token = cookies.token
@@ -25,7 +25,13 @@ export const authMiddleware = (handler) => {
 
       // Add user to request
       req.user = user
-      return handler(req)
+      
+      // Handle different HTTP methods
+      if (req.method === 'DELETE') {
+        return handler(req, ...args)
+      }
+      
+      return handler(req, ...args)
     } catch (error) {
       console.error('Auth middleware error:', error)
       return NextResponse.json(
@@ -37,7 +43,7 @@ export const authMiddleware = (handler) => {
 }
 
 export const adminMiddleware = (handler) => {
-  return async (req) => {
+  return async (req, ...args) => {
     try {
       const cookies = cookie.parse(req.headers.get('cookie') || '')
       const token = cookies.token
@@ -65,7 +71,13 @@ export const adminMiddleware = (handler) => {
       }
 
       req.user = user
-      return handler(req)
+      
+      // Handle different HTTP methods
+      if (req.method === 'DELETE') {
+        return handler(req, ...args)
+      }
+      
+      return handler(req, ...args)
     } catch (error) {
       console.error('Admin middleware error:', error)
       return NextResponse.json(
